@@ -354,6 +354,34 @@
     text-transform: uppercase;
   }
 
+
+  /* ── Tableau JS ── */
+  .js-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .js-table th {
+    text-align:left; padding:7px 8px;
+    color:var(--muted); font-weight:600;
+    border-bottom:1px solid var(--border);
+    font-family:'DM Mono',monospace; font-size:11px;
+  }
+  .js-table td {
+    padding:8px 8px;
+    border-bottom:1px solid rgba(255,255,255,0.04);
+    vertical-align:middle;
+  }
+  .js-table tr:last-child td { border-bottom:none; }
+  .js-table .val-pos { color:var(--success); font-weight:700; font-family:'DM Mono',monospace; }
+  .js-table .val-neg { color:var(--danger); font-weight:700; font-family:'DM Mono',monospace; }
+  .js-table .solde-col { font-family:'DM Mono',monospace; font-weight:600; color:var(--gold2); }
+  .js-table .source-badge {
+    font-size:9px; padding:2px 6px; border-radius:4px;
+    font-family:'DM Mono',monospace; text-transform:uppercase;
+  }
+  .js-table .src-chd { background:rgba(240,165,0,0.2); color:var(--gold2); }
+  .js-table .src-rc  { background:rgba(90,180,229,0.2); color:var(--foam); }
+  .js-table .src-pose { background:rgba(224,85,85,0.2); color:var(--danger); }
+  .js-table .src-initial { background:rgba(60,184,120,0.2); color:var(--success); }
+  .js-table .src-ajout { background:rgba(200,120,240,0.2); color:#d090f0; }
+
   /* ── Toast ── */
   .toast {
     position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
@@ -714,6 +742,65 @@
 
 </div>
 
+
+<!-- ── PAGE JS (Récup & CET) ── -->
+<div id="pageJS" class="page">
+
+  <!-- Soldes -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+    <div class="total-box" style="cursor:pointer;" onclick="goSection('sectionRecup')">
+      <div class="total-box-val" id="soldeRecupDisplay">— JS</div>
+      <div class="total-box-lbl">Compte Récup</div>
+    </div>
+    <div class="total-box" style="cursor:pointer;" onclick="goSection('sectionCET')">
+      <div class="total-box-val" id="soldeCETDisplay">— JS</div>
+      <div class="total-box-lbl">CET</div>
+    </div>
+  </div>
+
+  <!-- Saisie manuelle -->
+  <div class="card">
+    <div class="card-title">➕ Saisie manuelle</div>
+
+    <label>Compte</label>
+    <div class="radio-group" id="jsCompteGroup">
+      <div class="radio-btn selected" data-val="recup">Récup</div>
+      <div class="radio-btn" data-val="cet">CET</div>
+    </div>
+
+    <label>Type</label>
+    <div class="radio-group" id="jsTypeGroup">
+      <div class="radio-btn selected" data-val="ajout">Ajout (+ JS)</div>
+      <div class="radio-btn" data-val="pose">Pose (− JS)</div>
+      <div class="radio-btn" data-val="initial">Solde initial</div>
+    </div>
+
+    <label>Date</label>
+    <input type="date" id="jsDate">
+
+    <label>Nombre de JS</label>
+    <input type="number" id="jsValeur" min="0" step="0.5" placeholder="ex: 1.5">
+
+    <label>Libellé</label>
+    <input type="text" id="jsLibelle" placeholder="ex: Pose récup semaine 15">
+
+    <button class="btn btn-primary" onclick="ajouterLigneJS()">💾 Enregistrer</button>
+  </div>
+
+  <!-- Tableau Récup -->
+  <div class="card" id="sectionRecup">
+    <div class="card-title">🔄 Compte Récupération</div>
+    <div id="tableRecup"><div class="no-data">Chargement...</div></div>
+  </div>
+
+  <!-- Tableau CET -->
+  <div class="card" id="sectionCET">
+    <div class="card-title">🏦 Compte Épargne Temps (CET)</div>
+    <div id="tableCET"><div class="no-data">Chargement...</div></div>
+  </div>
+
+</div>
+
 <!-- ── NAV ── -->
 <nav class="nav">
   <button class="nav-btn active" onclick="goPage('pageSaisie',this)">
@@ -724,6 +811,9 @@
   </button>
   <button class="nav-btn" onclick="goPage('pageRecap',this)">
     <span class="nav-ico">📊</span>Récap
+  </button>
+  <button class="nav-btn" onclick="goPage('pageJS',this)">
+    <span class="nav-ico">📅</span>JS
   </button>
   <button class="nav-btn" onclick="goPage('pageConfig',this)">
     <span class="nav-ico">⚙️</span>Config
@@ -869,10 +959,15 @@ async function init() {
   bindTypeRadios();
   bindJsRadios('chdJsGroup');
   bindJsRadios('rcJsGroup');
+  bindJsRadios('jsCompteGroup');
+  bindJsRadios('jsTypeGroup');
+  const jsDateEl = document.getElementById('jsDate');
+  if (jsDateEl) jsDateEl.value = new Date().toISOString().slice(0,10);
   setChdEligibilityCheck();
   setDefaultDates();
   await loadRecap();
   await loadVoyages();
+  await loadCompteurs();
 }
 
 async function initTables() {
@@ -1387,9 +1482,18 @@ async function sauvegarderCHD() {
   });
 
   if (error) { toast('❌ Erreur : ' + error.message); return; }
+
+  // Alimenter Récup/CET si des marins ont choisi ce mode
+  const antoineSelCHD = document.querySelector('#antoineVersementCHD .radio-btn.selected');
+  const antoineValCHD = antoineSelCHD ? antoineSelCHD.dataset.val : 'salaire';
+  if (antoineValCHD === 'recup' || antoineValCHD === 'cet') {
+    await ajouterMouvementJS(antoineValCHD, js, `CHD ${navire}`, 'chd', null, date);
+  }
+
   toast('✅ Commande hors délai enregistrée');
   document.getElementById('chdNavire').value = '';
   await loadRecap();
+  await loadCompteurs();
 }
 
 async function sauvegarderRC() {
@@ -1412,8 +1516,17 @@ async function sauvegarderRC() {
   });
 
   if (error) { toast('❌ Erreur : ' + error.message); return; }
+
+  // Alimenter Récup/CET si Antoine a choisi ce mode
+  const antoineSelRC = document.querySelector('#antoineVersementRC .radio-btn.selected');
+  const antoineValRC = antoineSelRC ? antoineSelRC.dataset.val : 'salaire';
+  if (antoineValRC === 'recup' || antoineValRC === 'cet') {
+    await ajouterMouvementJS(antoineValRC, parseFloat(getSelectedRadio('rcJsGroup')), `RC ${motif||''}`, 'rc', null, date);
+  }
+
   toast('✅ Rappel congés enregistré');
   await loadRecap();
+  await loadCompteurs();
 }
 
 async function sauvegarderService() {
@@ -1452,6 +1565,123 @@ async function sauvegarderRemorque() {
   if (error) { toast('❌ Erreur : ' + error.message); return; }
   toast('✅ Prime remorque enregistrée (payable en ' + moisPaie + ')');
   await loadRecap();
+}
+
+
+// ── Compteurs JS (Récup & CET) ──
+
+async function loadCompteurs() {
+  await loadTableJS('recup');
+  await loadTableJS('cet');
+}
+
+async function loadTableJS(type) {
+  const { data, error } = await db.from('compteurs_js')
+    .select('*')
+    .eq('type', type)
+    .order('date', {ascending:true})
+    .order('created_at', {ascending:true});
+
+  const containerId = type === 'recup' ? 'tableRecup' : 'tableCET';
+  const soldeId     = type === 'recup' ? 'soldeRecupDisplay' : 'soldeCETDisplay';
+  const container   = document.getElementById(containerId);
+
+  if (error || !data || data.length === 0) {
+    container.innerHTML = '<div class="no-data">Aucune ligne — saisis un solde initial</div>';
+    document.getElementById(soldeId).textContent = '0 JS';
+    return;
+  }
+
+  // Recalculer les soldes cumulés en mémoire
+  let solde = 0;
+  const rows = data.map(row => {
+    solde += parseFloat(row.valeur || 0);
+    return { ...row, soldeCumul: solde };
+  });
+
+  const dernierSolde = rows[rows.length-1].soldeCumul;
+  document.getElementById(soldeId).textContent = dernierSolde.toFixed(1) + ' JS';
+
+  const srcLabel = s => {
+    const map = {chd:'CHD',rc:'RC',pose:'Pose',initial:'Init',ajout:'Ajout'};
+    return map[s] || s;
+  };
+
+  container.innerHTML = `
+    <div style="overflow-x:auto;">
+    <table class="js-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Libellé</th>
+          <th>Src</th>
+          <th>Mvt</th>
+          <th>Solde</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td style="color:var(--muted);white-space:nowrap;">${r.date}</td>
+            <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.libelle||''}</td>
+            <td><span class="source-badge src-${r.source}">${srcLabel(r.source)}</span></td>
+            <td class="${parseFloat(r.valeur)>=0?'val-pos':'val-neg'}">${parseFloat(r.valeur)>=0?'+':''}${parseFloat(r.valeur).toFixed(1)}</td>
+            <td class="solde-col">${r.soldeCumul.toFixed(1)}</td>
+            <td><button class="btn-sm danger" onclick="supprimerLigneJS('${r.id}','${type}')" style="padding:4px 8px;font-size:11px;">🗑️</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    </div>
+    <div style="text-align:right;margin-top:10px;font-family:'Bebas Neue';font-size:20px;color:var(--gold2);">
+      SOLDE : ${dernierSolde.toFixed(1)} JS
+    </div>
+  `;
+}
+
+async function ajouterLigneJS() {
+  const type    = getSelectedRadio('jsCompteGroup');
+  const typeOp  = getSelectedRadio('jsTypeGroup');
+  const date    = document.getElementById('jsDate').value || new Date().toISOString().slice(0,10);
+  const valeur  = parseFloat(document.getElementById('jsValeur').value);
+  const libelle = document.getElementById('jsLibelle').value || typeOp;
+
+  if (!valeur || valeur <= 0) { toast('⚠️ Saisis un nombre de JS valide'); return; }
+
+  const valeurSignee = typeOp === 'pose' ? -valeur : valeur;
+  const source = typeOp === 'initial' ? 'initial' : typeOp === 'pose' ? 'pose' : 'ajout';
+
+  const { error } = await db.from('compteurs_js').insert({
+    type, date, libelle, valeur: valeurSignee, source
+  });
+
+  if (error) { toast('❌ ' + error.message); return; }
+  toast('✅ Ligne enregistrée');
+  document.getElementById('jsValeur').value = '';
+  document.getElementById('jsLibelle').value = '';
+  await loadTableJS(type);
+}
+
+async function supprimerLigneJS(id, type) {
+  if (!confirm('Supprimer cette ligne ?')) return;
+  await db.from('compteurs_js').delete().eq('id', id);
+  await loadTableJS(type);
+  toast('🗑️ Supprimé');
+}
+
+async function ajouterMouvementJS(type, valeur, libelle, source, refId, date) {
+  // Appelé automatiquement lors d'un enregistrement CHD/RC avec versement récup ou CET
+  if (type !== 'recup' && type !== 'cet') return;
+  await db.from('compteurs_js').insert({
+    type, date: date || new Date().toISOString().slice(0,10),
+    libelle, valeur, source,
+    ref_id: refId || null
+  });
+}
+
+function goSection(id) {
+  document.getElementById(id).scrollIntoView({behavior:'smooth'});
 }
 
 // ── VOYAGE ──
@@ -1710,6 +1940,7 @@ function goPage(pageId, btn) {
   btn.classList.add('active');
   if (pageId === 'pageRecap') loadRecap();
   if (pageId === 'pageVoyage') loadVoyages();
+  if (pageId === 'pageJS') loadCompteurs();
   if (pageId === 'pageConfig') renderMarinsConfig();
 }
 
