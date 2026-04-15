@@ -382,6 +382,36 @@
   .js-table .src-initial { background:rgba(60,184,120,0.2); color:var(--success); }
   .js-table .src-ajout { background:rgba(200,120,240,0.2); color:#d090f0; }
 
+
+  /* ── Équipage voyage ── */
+  .cdi-row {
+    display:grid;
+    grid-template-columns: 1fr 90px 110px;
+    gap:6px; align-items:center;
+    padding:7px 0;
+    border-bottom:1px solid rgba(255,255,255,0.05);
+  }
+  .cdi-row:last-child { border-bottom:none; }
+  .cdi-nom { font-size:13px; font-weight:600; }
+  .cdi-nom small { display:block; font-size:10px; color:var(--muted); font-weight:400; }
+  .cdi-presence { font-size:12px; padding:6px 4px; }
+  .cdi-poste { font-size:11px; padding:6px 4px; }
+  .parts-badge {
+    display:inline-block;
+    font-family:'DM Mono',monospace;
+    font-size:11px; font-weight:700;
+    padding:2px 7px; border-radius:4px;
+    background:rgba(240,165,0,0.15);
+    color:var(--gold2);
+    margin-left:4px;
+  }
+  .cdd-row {
+    display:grid;
+    grid-template-columns:1fr 110px 80px 28px;
+    gap:6px; align-items:center;
+    margin-bottom:6px;
+  }
+
   /* ── Toast ── */
   .toast {
     position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
@@ -645,13 +675,17 @@
     <label>Autres frais (€)</label>
     <input type="number" id="vFrais" min="0" step="0.01" placeholder="0.00">
 
-    <div class="section-title">Équipage (faisant le voyage)</div>
-    <div id="equipageContainer"></div>
-    <button class="btn btn-outline" onclick="ajouterEquipageRow()" style="margin-top:0;">+ Ajouter un membre</button>
+    <div class="section-title">Équipage CDI</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:10px;">Pour chaque marin : sélectionne sa présence et son poste ce voyage.</p>
+    <div id="equipageCDIContainer"></div>
+
+    <div class="section-title" style="margin-top:14px;">CDD / Renfort</div>
+    <div id="equipageCDDContainer"></div>
+    <button class="btn btn-outline" onclick="ajouterCDDRow()" style="margin-top:4px;font-size:13px;">+ Ajouter un CDD</button>
 
     <div id="voyageResult" class="voyage-result" style="display:none; margin-top:14px;"></div>
 
-    <button class="btn btn-primary" onclick="calculerVoyage()">🧮 Calculer</button>
+    <button class="btn btn-primary" onclick="calculerVoyage()" style="margin-top:14px;">🧮 Calculer</button>
     <button class="btn btn-gold" id="btnSauveVoyage" style="display:none;" onclick="sauvegarderVoyage()">💾 Enregistrer le voyage</button>
   </div>
 
@@ -972,7 +1006,7 @@ async function init() {
   renderMarinsConfig();
   renderMarinsChips('chdMarins', 'chd');
   renderMarinsChips('rcMarins', 'rc');
-  renderEquipageInitial();
+  renderEquipageCDI();
   bindTypeRadios();
   bindJsRadios('chdJsGroup');
   bindJsRadios('rcJsGroup');
@@ -1713,37 +1747,8 @@ function goSection(id) {
 }
 
 // ── VOYAGE ──
-function renderEquipageInitial() {
-  const c = document.getElementById('equipageContainer');
-  c.innerHTML = '';
-  ajouterEquipageRow();
-}
-
-function ajouterEquipageRow() {
-  const c = document.getElementById('equipageContainer');
-  const row = document.createElement('div');
-  row.className = 'equipage-row';
-
-  const postes = ['Capitaine','Chef mécanicien','Second Capitaine','Matelot'];
-  const types = ['Voyage','Absent'];
-
-  const allMarins = [...marinsData];
-
-  row.innerHTML = `
-    <select class="eq-poste" onchange="calculerVoyageLive()">
-      ${postes.map(p=>`<option>${p}</option>`).join('')}
-    </select>
-    <select class="eq-type" onchange="calculerVoyageLive()">
-      ${types.map(t=>`<option>${t}</option>`).join('')}
-    </select>
-    <button class="remove-btn" onclick="this.parentElement.remove();calculerVoyageLive()">×</button>
-  `;
-  c.appendChild(row);
-}
-
-function calculerVoyageLive() {
-  const facture = parseFloat(document.getElementById('vFacture').value)||0;
-  if (facture > 0) calculerVoyage(false);
+function renderEquipageInitial() { // legacy wrapper
+  renderEquipageCDI();
 }
 
 const PARTS_POSTE = {
@@ -1752,54 +1757,141 @@ const PARTS_POSTE = {
   'Second Capitaine': 5,
   'Matelot': 4,
 };
-const PARTS_ABSENT = 2;
+
+function renderEquipageCDI() {
+  const c = document.getElementById('equipageCDIContainer');
+  if (!c) return;
+  c.innerHTML = '';
+  marinsData.forEach((m, idx) => {
+    const defaultPoste = m.poste || 'Matelot';
+    const postes = ['Capitaine','Chef mécanicien','Second Capitaine','Matelot'];
+    const presences = ['Voyage','Absent','CSS']; // CSS = Congés Sans Solde = 0 part
+    const isAntoine = (m.nom === 'JOSSE' && m.prenom === 'Antoine');
+
+    const row = document.createElement('div');
+    row.className = 'cdi-row';
+    row.dataset.idx = idx;
+    row.innerHTML = `
+      <div class="cdi-nom">
+        ${m.prenom} ${m.nom}
+        ${isAntoine ? '<span style="color:var(--gold2);font-size:10px;"> (toi)</span>' : ''}
+        <small>${defaultPoste}</small>
+      </div>
+      <select class="cdi-presence" onchange="onEquipageChange(this)" data-idx="${idx}">
+        ${presences.map(p => `<option value="${p}" ${isAntoine && p==='Voyage' ? 'selected' : ''}>${p === 'CSS' ? 'CSS (0 pt)' : p === 'Absent' ? 'Absent (2 pts)' : 'Voyage'}</option>`).join('')}
+      </select>
+      <select class="cdi-poste" onchange="onEquipageChange(this)" data-idx="${idx}">
+        ${postes.map(p => `<option value="${p}" ${p===defaultPoste?'selected':''}>${p} (${PARTS_POSTE[p]||4}pt)</option>`).join('')}
+      </select>
+    `;
+    c.appendChild(row);
+  });
+  calculerVoyageLive();
+}
+
+function ajouterCDDRow() {
+  const c = document.getElementById('equipageCDDContainer');
+  const postes = ['Capitaine','Chef mécanicien','Second Capitaine','Matelot'];
+  const row = document.createElement('div');
+  row.className = 'cdd-row';
+  row.innerHTML = `
+    <input type="text" placeholder="Prénom NOM" style="font-size:12px;padding:7px 10px;">
+    <select style="font-size:11px;padding:6px 4px;">
+      ${postes.map(p=>`<option>${p} (${PARTS_POSTE[p]||4}pt)</option>`).join('')}
+    </select>
+    <select style="font-size:11px;padding:6px 4px;" onchange="calculerVoyageLive()">
+      <option>Voyage</option>
+    </select>
+    <button class="remove-btn" onclick="this.parentElement.remove();calculerVoyageLive()" style="width:28px;height:28px;font-size:14px;">×</button>
+  `;
+  row.querySelectorAll('select, input').forEach(el => el.addEventListener('change', calculerVoyageLive));
+  c.appendChild(row);
+  calculerVoyageLive();
+}
+
+function onEquipageChange() { calculerVoyageLive(); }
+
+function calculerVoyageLive() {
+  const facture = parseFloat(document.getElementById('vFacture').value)||0;
+  calculerVoyage(false);
+}
 
 function calculerVoyage(save=true) {
   const facture = parseFloat(document.getElementById('vFacture').value)||0;
-  const conso = parseFloat(document.getElementById('vConso').value)||0;
+  const conso   = parseFloat(document.getElementById('vConso').value)||0;
   const prixCarbu = parseFloat(document.getElementById('vPrixCarbu').value)||0;
-  const frais = parseFloat(document.getElementById('vFrais').value)||0;
+  const frais   = parseFloat(document.getElementById('vFrais').value)||0;
 
   const coutCarbu = conso * prixCarbu;
-  const resultat = facture - coutCarbu - frais;
+  const resultat  = facture - coutCarbu - frais;
   const moitieEquipage = resultat / 2;
 
-  // Équipage
-  const rows = document.querySelectorAll('#equipageContainer .equipage-row');
   let totalParts = 0;
   let antoineParts = 0;
   const equip = [];
 
-  rows.forEach(row => {
-    const poste = row.querySelector('.eq-poste').value;
-    const type = row.querySelector('.eq-type').value;
-    const parts = type === 'Voyage' ? (PARTS_POSTE[poste]||4) : PARTS_ABSENT;
+  // CDI
+  document.querySelectorAll('#equipageCDIContainer .cdi-row').forEach((row, i) => {
+    const m = marinsData[i];
+    if (!m) return;
+    const presence = row.querySelector('.cdi-presence').value;
+    const poste    = row.querySelector('.cdi-poste').value;
+    const isAntoine = (m.nom === 'JOSSE' && m.prenom === 'Antoine');
+
+    let parts = 0;
+    if (presence === 'Voyage') parts = PARTS_POSTE[poste] || 4;
+    else if (presence === 'Absent') parts = 2;
+    else parts = 0; // CSS
+
     totalParts += parts;
-    equip.push({poste, type, parts});
+    if (isAntoine) antoineParts = parts;
+    equip.push({ nom: m.nom, prenom: m.prenom, poste, presence, parts, cdi: true });
   });
 
-  // Antoine = capitaine faisant le voyage (6 parts)
-  antoineParts = 6;
-  totalParts += antoineParts;
+  // CDD
+  document.querySelectorAll('#equipageCDDContainer .cdd-row').forEach(row => {
+    const nom     = row.querySelector('input')?.value || 'CDD';
+    const poste   = row.querySelectorAll('select')[0]?.value?.split(' ')[0] + (row.querySelectorAll('select')[0]?.value?.includes('mécanicien') ? ' mécanicien' : row.querySelectorAll('select')[0]?.value?.includes('Capitaine') && row.querySelectorAll('select')[0]?.value?.includes('Second') ? ' Capitaine' : '');
+    const posteClean = row.querySelectorAll('select')[0]?.value?.replace(/\s*\(\d+pt\)/, '') || 'Matelot';
+    const parts = PARTS_POSTE[posteClean] || 4;
+    totalParts += parts;
+    equip.push({ nom, prenom:'', poste: posteClean, presence:'Voyage', parts, cdi: false });
+  });
 
-  const valeurPart = totalParts > 0 ? moitieEquipage / totalParts : 0;
+  const valeurPart  = totalParts > 0 ? moitieEquipage / totalParts : 0;
   const partAntoine = valeurPart * antoineParts;
 
-  voyageCalcData = { facture, conso, prixCarbu, frais, coutCarbu, resultat, moitieEquipage, partAntoine, equip, totalParts, valeurPart };
+  voyageCalcData = { facture, conso, prixCarbu, frais, coutCarbu, resultat, moitieEquipage, partAntoine, equip, totalParts, valeurPart, antoineParts };
 
   const resultDiv = document.getElementById('voyageResult');
   resultDiv.style.display = 'block';
+
+  // Détail par personne
+  const lignesEquip = equip.map(e =>
+    `<div class="voyage-result-row">
+      <span class="voyage-result-label">${e.prenom} ${e.nom} <small>(${e.presence} · ${e.poste})</small></span>
+      <span>${e.parts}pt → ${e.parts > 0 ? (valeurPart * e.parts).toFixed(2)+' €' : '—'}</span>
+    </div>`
+  ).join('');
+
   resultDiv.innerHTML = `
     <div class="voyage-result-row"><span class="voyage-result-label">Total facturé</span><span>${facture.toFixed(2)} €</span></div>
-    <div class="voyage-result-row"><span class="voyage-result-label">Carburant (${conso}L × ${prixCarbu}€)</span><span>− ${coutCarbu.toFixed(2)} €</span></div>
+    <div class="voyage-result-row"><span class="voyage-result-label">Carburant (${conso}L × ${prixCarbu} €)</span><span>− ${coutCarbu.toFixed(2)} €</span></div>
     <div class="voyage-result-row"><span class="voyage-result-label">Frais</span><span>− ${frais.toFixed(2)} €</span></div>
-    <div class="voyage-result-row"><span class="voyage-result-label">Résultat</span><span>${resultat.toFixed(2)} €</span></div>
-    <div class="voyage-result-row"><span class="voyage-result-label">Moitié équipage</span><span>${moitieEquipage.toFixed(2)} €</span></div>
-    <div class="voyage-result-row"><span class="voyage-result-label">Valeur 1 part (${totalParts} parts total)</span><span>${valeurPart.toFixed(2)} €</span></div>
-    <div class="voyage-result-row"><span class="voyage-result-label">Ta part (6 parts Capitaine)</span><span style="color:var(--gold2);font-size:18px;font-family:'Bebas Neue'">${partAntoine.toFixed(2)} €</span></div>
+    <div class="voyage-result-row"><span class="voyage-result-label">Résultat net</span><span>${resultat.toFixed(2)} €</span></div>
+    <div class="voyage-result-row"><span class="voyage-result-label">Moitié équipage (÷2)</span><span>${moitieEquipage.toFixed(2)} €</span></div>
+    <div class="voyage-result-row"><span class="voyage-result-label">Total parts</span><span><b>${totalParts} parts</b></span></div>
+    <div class="voyage-result-row"><span class="voyage-result-label">Valeur 1 part</span><span>${valeurPart.toFixed(2)} €</span></div>
+    <hr style="border-color:var(--border);margin:6px 0;">
+    ${lignesEquip}
+    <hr style="border-color:var(--border);margin:6px 0;">
+    <div class="voyage-result-row">
+      <span class="voyage-result-label" style="font-weight:700;">🎯 Ta part (${antoineParts} pts)</span>
+      <span style="color:var(--gold2);font-size:20px;font-family:'Bebas Neue'">${partAntoine.toFixed(2)} €</span>
+    </div>
   `;
 
-  if (save) document.getElementById('btnSauveVoyage').style.display = 'block';
+  if (save && facture > 0) document.getElementById('btnSauveVoyage').style.display = 'block';
 }
 
 async function sauvegarderVoyage() {
