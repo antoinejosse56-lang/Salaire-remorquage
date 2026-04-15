@@ -874,6 +874,12 @@
 <div class="toast" id="toast"></div>
 
 <script>
+// ── Supabase init ──
+const SUPA_URL = 'https://ypbkkudsztqsnqgbqjyg.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwYmtrdWRzenRxc25xZ2JxanlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNDU2NDgsImV4cCI6MjA5MTgyMTY0OH0.tyTFTfaQp-44ubjcrQNqIPg7jSVPBBWZqdsV2cyeR9A';
+const { createClient } = supabase;
+const db = createClient(SUPA_URL, SUPA_KEY);
+
 // ── Auth ──
 const PWD_KEY = 'rem_pwd';
 const SESSION_KEY = 'rem_session';
@@ -943,11 +949,7 @@ if (checkSession()) {
   init();
 }
 
-// ── Supabase init ──
-const SUPA_URL = 'https://ypbkkudsztqsnqgbqjyg.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwYmtrdWRzenRxc25xZ2JxanlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNDU2NDgsImV4cCI6MjA5MTgyMTY0OH0.tyTFTfaQp-44ubjcrQNqIPg7jSVPBBWZqdsV2cyeR9A';
-const { createClient } = supabase;
-const db = createClient(SUPA_URL, SUPA_KEY);
+
 
 // ── SQL à exécuter dans Supabase ──
 /*
@@ -1962,6 +1964,7 @@ async function loadVoyages() {
             ? `<button class="btn-sm danger" onclick="toggleVoyageRegle('${v.id}',false)">Annuler ✓</button>`
             : `<button class="btn-sm success" onclick="marquerVoyageRegle('${v.id}')">✓ Payé</button>`
           }
+          <button class="btn-sm danger" onclick="supprimerVoyage('${v.id}')" style="margin-top:4px;">🗑️ Supprimer</button>
         </div>
       </div>
       ${lignesEquip ? `<div style="margin-top:8px;line-height:1.8;">${lignesEquip}</div>` : ''}
@@ -1988,6 +1991,13 @@ async function marquerVoyageRegle(id) {
 async function toggleVoyageRegle(id, val) {
   await db.from('voyages').update({regle:val, date_paiement:null}).eq('id',id);
   await loadVoyages();
+}
+
+async function supprimerVoyage(id) {
+  if (!confirm('Supprimer ce voyage définitivement ?')) return;
+  await db.from('voyages').delete().eq('id', id);
+  await loadVoyages();
+  toast('🗑️ Voyage supprimé');
 }
 
 // ── RÉCAP MENSUEL ──
