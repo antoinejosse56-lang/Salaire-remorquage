@@ -491,6 +491,13 @@
 
     <div id="chdEligible" style="margin-top:12px; padding:10px 12px; border-radius:8px; font-size:12px; display:none;"></div>
 
+    <label style="margin-top:14px;">Mon versement (Antoine JOSSE)</label>
+    <div class="radio-group" id="antoineVersementCHD">
+      <div class="radio-btn selected" data-val="salaire" onclick="selectVersementAntoine('chdMarins',this)">Salaire</div>
+      <div class="radio-btn" data-val="recup" onclick="selectVersementAntoine('chdMarins',this)">Récup</div>
+      <div class="radio-btn" data-val="cet" onclick="selectVersementAntoine('chdMarins',this)">CET</div>
+    </div>
+
     <label style="margin-top:14px;">Marins à bord ce jour (cocher ceux concernés)</label>
     <div class="marins-grid" id="chdMarins"></div>
 
@@ -516,13 +523,23 @@
     <label>Date du rappel</label>
     <input type="date" id="rcDate">
 
-    <label>Motif du rappel</label>
-    <input type="text" id="rcMotif" placeholder="ex: Armement 3ème remorqueur — Tempête">
+    <label>Nom du navire (pour armement 3ème remorqueur)</label>
+    <input type="text" id="rcNavire" placeholder="ex: LADY DIVINA">
+
+    <label>Motif du rappel (pour 1,5 JS)</label>
+    <input type="text" id="rcMotif" placeholder="ex: Urgence météo, renfort exceptionnel...">
 
     <label>Compensation</label>
     <div class="radio-group" id="rcJsGroup">
       <div class="radio-btn selected" data-val="1.5">1,5 JS</div>
       <div class="radio-btn" data-val="3">3 JS (armement 3ème remorqueur)</div>
+    </div>
+
+    <label style="margin-top:14px;">Mon versement (Antoine JOSSE)</label>
+    <div class="radio-group" id="antoineVersementRC">
+      <div class="radio-btn selected" data-val="salaire" onclick="selectVersementAntoine('rcMarins',this)">Salaire</div>
+      <div class="radio-btn" data-val="recup" onclick="selectVersementAntoine('rcMarins',this)">Récup</div>
+      <div class="radio-btn" data-val="cet" onclick="selectVersementAntoine('rcMarins',this)">CET</div>
     </div>
 
     <label style="margin-top:14px;">Marins concernés</label>
@@ -1021,17 +1038,38 @@ function renderMarinsChips(containerId, type) {
   container.innerHTML = '';
   const toShow = marinsData.filter(m => !(m.nom === 'JOSSE' && m.prenom === 'Antoine'));
   [...toShow, ...(cddExtras[type]||[])].forEach(m => {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'width:100%; margin-bottom:8px;';
+
     const chip = document.createElement('div');
     chip.className = 'marin-chip';
     chip.dataset.nom = m.nom;
     chip.dataset.prenom = m.prenom;
-    chip.textContent = `${m.prenom} ${m.nom}`;
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:8px;width:100%;justify-content:space-between;border-radius:10px;padding:9px 14px;';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = `${m.prenom} ${m.nom}`;
+    nameSpan.style.fontWeight = '600';
+
+    // Sélecteur versement (caché par défaut)
+    const sel = document.createElement('select');
+    sel.style.cssText = 'background:rgba(255,255,255,0.1);border:1px solid var(--border);border-radius:6px;color:var(--white);font-size:11px;padding:3px 6px;display:none;font-family:DM Sans,sans-serif;cursor:pointer;';
+    sel.innerHTML = '<option value="salaire">Salaire</option><option value="recup">Compte récup</option><option value="cet">CET</option>';
+    sel.onclick = e => e.stopPropagation();
+    sel.onchange = () => { if (type === 'chd') genMailCHD(); if (type === 'rc') genMailRC(); };
+
+    chip.appendChild(nameSpan);
+    chip.appendChild(sel);
+
     chip.onclick = () => {
       chip.classList.toggle('selected');
+      sel.style.display = chip.classList.contains('selected') ? 'block' : 'none';
       if (type === 'chd') genMailCHD();
       if (type === 'rc') genMailRC();
     };
-    container.appendChild(chip);
+
+    wrap.appendChild(chip);
+    container.appendChild(wrap);
   });
 }
 
@@ -1204,6 +1242,29 @@ function checkChdEligible() {
   genMailCHD();
 }
 
+
+function selectVersementAntoine(gridId, btn) {
+  // Désélectionner les autres dans le même groupe
+  btn.closest('.radio-group').querySelectorAll('.radio-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  if (gridId === 'chdMarins') genMailCHD();
+  if (gridId === 'rcMarins') genMailRC();
+}
+
+function antoineVersementCHD() {
+  const sel = document.querySelector('#antoineVersementCHD .radio-btn.selected');
+  const val = sel ? sel.dataset.val : 'salaire';
+  const label = val === 'recup' ? 'compte récup' : val === 'cet' ? 'CET' : 'salaire';
+  return `Antoine JOSSE sur ${label}`;
+}
+
+function antoineVersementRC() {
+  const sel = document.querySelector('#antoineVersementRC .radio-btn.selected');
+  const val = sel ? sel.dataset.val : 'salaire';
+  const label = val === 'recup' ? 'compte récup' : val === 'cet' ? 'CET' : 'salaire';
+  return `Antoine JOSSE sur ${label}`;
+}
+
 // ── Mail CHD ──
 function genMailCHD() {
   const navire = document.getElementById('chdNavire').value || '[NAVIRE]';
@@ -1219,19 +1280,22 @@ function genMailCHD() {
   const jourCmdLabel = dateCmdObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
 
   const marinsSelected = [...document.querySelectorAll('#chdMarins .marin-chip.selected')];
+  const labelVersement = v => v === 'recup' ? 'compte récup' : v === 'cet' ? 'CET' : 'salaire';
+
+  // Antoine toujours en premier avec son propre sélecteur (salaire par défaut)
   const lignesMarins = marinsSelected.map(c => {
-    const nom = c.dataset.nom;
     const prenom = c.dataset.prenom;
-    const m = marinsData.find(x => x.nom===nom && x.prenom===prenom) || {poste:''};
-    return `${prenom} ${nom} sur salaire`;
+    const nom = c.dataset.nom;
+    const versement = c.querySelector('select')?.value || 'salaire';
+    return `${prenom} ${nom} sur ${labelVersement(versement)}`;
   }).join('\n');
 
-  const mail = `Bonjour,
+  const mail = `Bonjour Guylaine,
 
 Suite commande hors délai pour l'entrée du ${navire}, commande passée à ${heureCmd} le ${jourCmdLabel} pour manœuvre à ${heurePAB} le ${jourPABLabel}.
 
 Merci de verser ${js} JS à :
-Antoine JOSSE sur salaire
+${antoineVersementCHD()}
 ${lignesMarins || '[Sélectionner les marins ci-dessus]'}
 
 Merci et bonne journée
@@ -1245,24 +1309,44 @@ Antoine`;
 function genMailRC() {
   const date = document.getElementById('rcDate').value;
   const motif = document.getElementById('rcMotif').value || '[motif]';
+  const navireRC = document.getElementById('rcNavire')?.value || '';
   const js = getSelectedRadio('rcJsGroup');
 
   const dateObj = date ? new Date(date+'T12:00:00') : new Date();
   const dateLabel = dateObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
 
   const marinsSelected = [...document.querySelectorAll('#rcMarins .marin-chip.selected')];
-  const lignesMarins = marinsSelected.map(c => `${c.dataset.prenom} ${c.dataset.nom} sur salaire`).join('\n');
+  const labelVersement = v => v === 'recup' ? 'compte récup' : v === 'cet' ? 'CET' : 'salaire';
+  const lignesMarins = marinsSelected.map(c => {
+    const versement = c.querySelector('select')?.value || 'salaire';
+    return `${c.dataset.prenom} ${c.dataset.nom} sur ${labelVersement(versement)}`;
+  }).join('\n');
 
-  const mail = `Bonjour,
+  let mail;
+  if (js === '3') {
+    // Message 3ème remorqueur
+    mail = `Bonjour Guylaine,
 
-Suite rappel sur congés le ${dateLabel} — ${motif}.
+Suite à l'armement du 3ème remorqueur pour le mouvement du ${navireRC || '[nom du navire]'} le ${dateLabel}, merci de bien vouloir verser 3 JS à :
 
-Merci de verser ${js} JS à :
-Antoine JOSSE sur salaire
+${antoineVersementCHD()}
 ${lignesMarins || '[Sélectionner les marins ci-dessus]'}
 
 Merci et bonne journée
 Antoine`;
+  } else {
+    // Message rappel congés standard 1.5 JS
+    mail = `Bonjour Guylaine,
+
+Suite rappel sur congés le ${dateLabel} — ${motif}.
+
+Merci de verser 1,5 JS à :
+${antoineVersementCHD()}
+${lignesMarins || '[Sélectionner les marins ci-dessus]'}
+
+Merci et bonne journée
+Antoine`;
+  }
 
   document.getElementById('mailTextRC').textContent = mail;
   document.getElementById('mailPreviewRC').style.display = 'block';
@@ -1287,14 +1371,18 @@ async function sauvegarderCHD() {
   const jourCmd = document.getElementById('chdJourCmd').value;
   const js = parseFloat(getSelectedRadio('chdJsGroup'));
   const marinsSelected = [...document.querySelectorAll('#chdMarins .marin-chip.selected')]
-    .map(c => `${c.dataset.prenom} ${c.dataset.nom}`);
+    .map(c => ({
+      nom: c.dataset.nom,
+      prenom: c.dataset.prenom,
+      versement: c.querySelector('select')?.value || 'salaire'
+    }));
 
   if (!date || !navire) { toast('⚠️ Complète la date et le navire'); return; }
 
   const { error } = await db.from('evenements').insert({
     type:'chd', date, mois: getMoisFromDate(date),
     navire, heure_cmd: heureCmd, heure_pab: heurePAB,
-    jour_cmd: jourCmd, js, regle: false,
+    js, regle: false,
     marins_json: JSON.stringify(marinsSelected)
   });
 
@@ -1309,7 +1397,11 @@ async function sauvegarderRC() {
   const motif = document.getElementById('rcMotif').value;
   const js = parseFloat(getSelectedRadio('rcJsGroup'));
   const marinsSelected = [...document.querySelectorAll('#rcMarins .marin-chip.selected')]
-    .map(c => `${c.dataset.prenom} ${c.dataset.nom}`);
+    .map(c => ({
+      nom: c.dataset.nom,
+      prenom: c.dataset.prenom,
+      versement: c.querySelector('select')?.value || 'salaire'
+    }));
 
   if (!date) { toast('⚠️ Complète la date'); return; }
 
@@ -1637,7 +1729,7 @@ function toast(msg) {
   const el = document.getElementById(id);
   if (el) el.addEventListener('change', genMailCHD);
 });
-['rcDate','rcMotif'].forEach(id => {
+['rcDate','rcMotif','rcNavire'].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('change', genMailRC);
 });
