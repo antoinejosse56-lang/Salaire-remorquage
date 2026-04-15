@@ -971,20 +971,24 @@ async function init() {
 }
 
 async function initTables() {
-  // Test connexion
   try {
-    const { error } = await db.from('config').select('key').limit(1);
-    if (error && error.code === '42P01') {
-      // Tables n'existent pas encore — on affiche le guide SQL
+    const { data, error } = await db.from('config').select('key').limit(1);
+    if (error) {
+      // Afficher l'erreur précise
+      document.getElementById('connDot').classList.add('err');
       document.getElementById('cfgStatus').innerHTML =
-        '<span style="color:var(--danger)">⚠️ Tables manquantes. Exécute le SQL dans Supabase (onglet Config).</span>';
-      showSQLGuide();
-    } else if (!error) {
-      document.getElementById('connDot').classList.add('ok');
-      document.getElementById('cfgStatus').innerHTML = '<span style="color:var(--success)">✅ Connecté</span>';
+        `<span style="color:var(--danger)">❌ Erreur : ${error.message} (code: ${error.code})</span>`;
+      if (error.code === '42P01') showSQLGuide();
+      return;
     }
+    // Connexion OK
+    document.getElementById('connDot').classList.add('ok');
+    document.getElementById('cfgStatus').innerHTML =
+      '<span style="color:var(--success)">✅ Connecté à Supabase</span>';
   } catch(e) {
     document.getElementById('connDot').classList.add('err');
+    document.getElementById('cfgStatus').innerHTML =
+      `<span style="color:var(--danger)">❌ Erreur réseau : ${e.message}</span>`;
   }
 }
 
@@ -1460,10 +1464,10 @@ function getMoisFromDate(date) {
 
 async function sauvegarderCHD() {
   const date = document.getElementById('chdDate').value;
+  const dateCmd = document.getElementById('chdDateCmd').value;
   const navire = document.getElementById('chdNavire').value;
   const heureCmd = document.getElementById('chdHeureCmd').value;
   const heurePAB = document.getElementById('chdHeurePAB').value;
-  const jourCmd = document.getElementById('chdJourCmd').value;
   const js = parseFloat(getSelectedRadio('chdJsGroup'));
   const marinsSelected = [...document.querySelectorAll('#chdMarins .marin-chip.selected')]
     .map(c => ({
@@ -1477,6 +1481,7 @@ async function sauvegarderCHD() {
   const { error } = await db.from('evenements').insert({
     type:'chd', date, mois: getMoisFromDate(date),
     navire, heure_cmd: heureCmd, heure_pab: heurePAB,
+    motif: dateCmd,
     js, regle: false,
     marins_json: JSON.stringify(marinsSelected)
   });
