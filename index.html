@@ -1,0 +1,1648 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Rem'Salaire — Lorient</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --navy: #0a1628;
+    --navy2: #0e1f3d;
+    --steel: #1a3055;
+    --ocean: #1e4d7a;
+    --wave: #2e7db5;
+    --foam: #5ab4e5;
+    --gold: #f0a500;
+    --gold2: #ffc740;
+    --white: #f0f4f8;
+    --muted: #7a94b0;
+    --danger: #e05555;
+    --success: #3cb878;
+    --card: rgba(14,31,61,0.92);
+    --border: rgba(90,180,229,0.18);
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--navy);
+    color: var(--white);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:
+      radial-gradient(ellipse at 20% 20%, rgba(46,125,181,0.18) 0%, transparent 60%),
+      radial-gradient(ellipse at 80% 80%, rgba(240,165,0,0.08) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+
+  /* ── Login screen ── */
+  #loginScreen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: var(--navy);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 32px;
+  }
+  #loginScreen.hidden { display: none; }
+  .login-logo {
+    font-size: 56px; margin-bottom: 16px;
+    animation: bob 2s ease-in-out infinite;
+  }
+  @keyframes bob {
+    0%,100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  .login-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 32px; letter-spacing: 4px;
+    color: var(--foam); margin-bottom: 4px;
+  }
+  .login-sub {
+    font-size: 12px; color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 40px;
+  }
+  .login-box {
+    width: 100%; max-width: 320px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  .login-input-wrap {
+    position: relative; margin-bottom: 16px;
+  }
+  .login-input-wrap input {
+    padding-right: 44px;
+    font-size: 18px; letter-spacing: 4px;
+    text-align: center;
+  }
+  .login-eye {
+    position: absolute; right: 12px; top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer; font-size: 18px;
+    color: var(--muted); user-select: none;
+  }
+  .login-error {
+    color: var(--danger); font-size: 12px;
+    text-align: center; margin-top: -8px;
+    margin-bottom: 12px; min-height: 16px;
+  }
+  .login-hint {
+    font-size: 11px; color: var(--muted);
+    text-align: center; margin-top: 16px;
+    font-family: 'DM Mono', monospace;
+  }
+  .shake { animation: shake 0.4s ease; }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-8px); }
+    40% { transform: translateX(8px); }
+    60% { transform: translateX(-6px); }
+    80% { transform: translateX(6px); }
+  }
+
+  /* ── Header ── */
+  .header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,22,40,0.96);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
+    display: flex; align-items: center; gap: 12px;
+    height: 56px;
+  }
+  .header-icon { font-size: 22px; }
+  .header-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: var(--foam);
+  }
+  .header-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+    font-family: 'DM Mono', monospace;
+  }
+  .conn-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    margin-left: 8px;
+    transition: background 0.4s;
+  }
+  .conn-dot.ok { background: var(--success); }
+  .conn-dot.err { background: var(--danger); }
+
+  /* ── Nav ── */
+  .nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(10,22,40,0.97);
+    border-top: 1px solid var(--border);
+    display: flex;
+    backdrop-filter: blur(12px);
+  }
+  .nav-btn {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px;
+    padding: 8px 4px 10px;
+    border: none; background: none; color: var(--muted);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 9px; font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .nav-btn.active { color: var(--foam); }
+  .nav-btn .nav-ico { font-size: 20px; }
+
+  /* ── Pages ── */
+  .page { display: none; padding: 16px 16px 80px; position: relative; z-index: 1; }
+  .page.active { display: block; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 14px;
+    backdrop-filter: blur(8px);
+  }
+  .card-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 16px;
+    letter-spacing: 1.5px;
+    color: var(--foam);
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* ── Form elements ── */
+  label { font-size: 12px; color: var(--muted); font-weight: 500; display: block; margin-bottom: 5px; margin-top: 12px; }
+  label:first-child { margin-top: 0; }
+
+  input[type="text"], input[type="number"], input[type="date"],
+  input[type="time"], input[type="datetime-local"], select, textarea {
+    width: 100%;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    padding: 10px 12px;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--wave); }
+  select option { background: var(--navy2); }
+
+  .radio-group { display: flex; gap: 8px; flex-wrap: wrap; }
+  .radio-btn {
+    flex: 1; min-width: 80px;
+    padding: 9px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.05);
+    color: var(--muted);
+    font-size: 12px; font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .radio-btn.selected { background: var(--ocean); border-color: var(--wave); color: var(--white); }
+
+  .btn {
+    width: 100%;
+    padding: 13px;
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 17px;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 16px;
+  }
+  .btn-primary { background: linear-gradient(135deg, var(--wave), var(--foam)); color: var(--navy); }
+  .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold2)); color: var(--navy); }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--foam); }
+  .btn:active { transform: scale(0.97); }
+
+  .btn-sm {
+    padding: 7px 14px; font-size: 13px; font-family: 'DM Sans', sans-serif;
+    font-weight: 600; border-radius: 8px; border: none; cursor: pointer;
+  }
+  .btn-sm.danger { background: rgba(224,85,85,0.2); color: var(--danger); border: 1px solid rgba(224,85,85,0.3); }
+  .btn-sm.success { background: rgba(60,184,120,0.2); color: var(--success); border: 1px solid rgba(60,184,120,0.3); }
+  .btn-sm.info { background: rgba(90,180,229,0.15); color: var(--foam); border: 1px solid var(--border); }
+
+  /* ── Checkbox marins ── */
+  .marins-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .marin-chip {
+    padding: 7px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.05);
+    color: var(--muted);
+    font-size: 12px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .marin-chip.selected { background: var(--ocean); border-color: var(--wave); color: var(--white); }
+
+  /* ── Récap items ── */
+  .recap-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 14px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+  .recap-item-left { flex: 1; }
+  .recap-item-title { font-size: 13px; font-weight: 600; color: var(--white); }
+  .recap-item-sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: 'DM Mono', monospace; }
+  .recap-item-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+  .badge {
+    font-size: 10px; font-weight: 700;
+    padding: 3px 8px; border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+  }
+  .badge-js { background: rgba(90,180,229,0.2); color: var(--foam); }
+  .badge-paid { background: rgba(60,184,120,0.2); color: var(--success); }
+  .badge-unpaid { background: rgba(240,165,0,0.2); color: var(--gold2); }
+
+  /* ── Month selector ── */
+  .month-selector {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .month-label {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px; letter-spacing: 2px;
+    color: var(--gold2);
+  }
+  .month-nav-btn {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--foam);
+    padding: 6px 14px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  /* ── Totaux ── */
+  .totaux-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px; margin-bottom: 14px;
+  }
+  .total-box {
+    background: rgba(30,77,122,0.4);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+  }
+  .total-box-val {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px; color: var(--gold2);
+    letter-spacing: 1px;
+  }
+  .total-box-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+  /* ── Mail preview ── */
+  .mail-box {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(240,165,0,0.3);
+    border-radius: 10px;
+    padding: 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--white);
+    white-space: pre-wrap;
+    margin-top: 10px;
+  }
+
+  /* ── Section title ── */
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin: 16px 0 8px;
+    text-transform: uppercase;
+  }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%);
+    background: var(--steel);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 10px 20px;
+    font-size: 13px;
+    z-index: 999;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+  /* ── Voyage calcul ── */
+  .voyage-result {
+    background: rgba(30,77,122,0.3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 10px;
+  }
+  .voyage-result-row {
+    display: flex; justify-content: space-between;
+    font-size: 13px; padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .voyage-result-row:last-child { border-bottom: none; font-weight: 700; color: var(--gold2); }
+  .voyage-result-label { color: var(--muted); }
+
+  /* ── Equipage builder ── */
+  .equipage-row {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }
+  .equipage-row select { flex: 2; }
+  .equipage-row .eq-poste { flex: 1.5; }
+  .equipage-row .eq-type { flex: 1; }
+  .remove-btn {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: rgba(224,85,85,0.2); border: 1px solid rgba(224,85,85,0.3);
+    color: var(--danger); font-size: 18px; line-height: 1;
+    cursor: pointer; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* Scroll helper */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--steel); border-radius: 4px; }
+
+  .no-data { text-align: center; color: var(--muted); font-size: 13px; padding: 24px 0; }
+  .spinner { text-align: center; padding: 20px; color: var(--muted); font-size: 22px; }
+
+  .tag-type {
+    font-size: 10px; font-weight: 700; letter-spacing: 1px;
+    padding: 2px 7px; border-radius: 4px;
+    font-family: 'DM Mono', monospace;
+    text-transform: uppercase;
+  }
+  .tag-chd { background: rgba(240,165,0,0.2); color: var(--gold2); }
+  .tag-rc { background: rgba(90,180,229,0.2); color: var(--foam); }
+  .tag-voyage { background: rgba(60,184,120,0.2); color: var(--success); }
+  .tag-remorque { background: rgba(200,120,240,0.2); color: #d090f0; }
+  .tag-cap { background: rgba(255,180,100,0.2); color: #ffb464; }
+</style>
+</head>
+<body>
+
+
+<div id="loginScreen">
+  <div class="login-logo">⚓</div>
+  <div class="login-title">Rem'Salaire</div>
+  <div class="login-sub">LORIENT · ACCÈS RESTREINT</div>
+  <div class="login-box">
+    <label style="text-align:center;display:block;margin-bottom:12px;">Mot de passe</label>
+    <div class="login-input-wrap">
+      <input type="password" id="loginInput" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter') checkLogin()"
+        oninput="document.getElementById('loginError').textContent=''">
+      <span class="login-eye" onclick="toggleLoginEye()">👁️</span>
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <button class="btn btn-primary" onclick="checkLogin()" style="margin-top:0;">Accéder</button>
+    <div class="login-hint">Premier accès ? Le mot de passe par défaut est <b>lorient</b><br>Change-le dans Paramètres après connexion.</div>
+  </div>
+</div>
+
+<div class="header">
+  <span class="header-icon">⚓</span>
+  <span class="header-title">Rem'Salaire</span>
+  <span class="header-sub">Lorient</span>
+  <div class="conn-dot" id="connDot"></div>
+</div>
+
+<div id="pageSaisie" class="page active">
+  <!-- Type selector -->
+  <div class="card">
+    <div class="card-title">➕ Nouvelle saisie</div>
+    <div class="radio-group" id="typeGroup">
+      <div class="radio-btn selected" data-val="chd">Cmd hors délai</div>
+      <div class="radio-btn" data-val="rc">Rappel congés</div>
+      <div class="radio-btn" data-val="service">Prime service</div>
+      <div class="radio-btn" data-val="remorque">Prime remorque</div>
+    </div>
+  </div>
+
+  <!-- CHD Form -->
+  <div id="formCHD" class="card">
+    <div class="card-title">⏰ Commande hors délai</div>
+
+    <label>📞 Date de la commande (appel reçu)</label>
+    <input type="date" id="chdDateCmd">
+
+    <label>Heure de la commande</label>
+    <input type="time" id="chdHeureCmd">
+
+    <label>⚓ Date de la manœuvre</label>
+    <input type="date" id="chdDate">
+
+    <label>Heure pilote à bord (PAB)</label>
+    <input type="time" id="chdHeurePAB">
+
+    <label>Nom du navire</label>
+    <input type="text" id="chdNavire" placeholder="ex: LADY DIVINA">
+
+    <label>Compensation accordée</label>
+    <div class="radio-group" id="chdJsGroup">
+      <div class="radio-btn selected" data-val="1.5">1,5 JS</div>
+      <div class="radio-btn" data-val="3">3 JS (3ème remorqueur)</div>
+    </div>
+
+    <div id="chdEligible" style="margin-top:12px; padding:10px 12px; border-radius:8px; font-size:12px; display:none;"></div>
+
+    <label style="margin-top:14px;">Marins à bord ce jour (cocher ceux concernés)</label>
+    <div class="marins-grid" id="chdMarins"></div>
+
+    <label>Ajouter un CDD (nom prénom)</label>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="chdCddNom" placeholder="Nom Prénom CDD" style="flex:1;">
+      <button class="btn-sm info" onclick="ajouterCdd('chd')" style="margin-top:0;padding:10px 14px;">+</button>
+    </div>
+
+    <div id="mailPreviewCHD" style="display:none;">
+      <div class="section-title">📧 Mail prêt à copier</div>
+      <div class="mail-box" id="mailTextCHD"></div>
+      <button class="btn btn-outline" style="margin-top:10px;" onclick="copierMail('mailTextCHD')">📋 Copier le mail</button>
+    </div>
+
+    <button class="btn btn-primary" onclick="sauvegarderCHD()">💾 Enregistrer</button>
+  </div>
+
+  <!-- RC Form -->
+  <div id="formRC" class="card" style="display:none;">
+    <div class="card-title">🏖️ Rappel sur congés</div>
+
+    <label>Date du rappel</label>
+    <input type="date" id="rcDate">
+
+    <label>Motif du rappel</label>
+    <input type="text" id="rcMotif" placeholder="ex: Armement 3ème remorqueur — Tempête">
+
+    <label>Compensation</label>
+    <div class="radio-group" id="rcJsGroup">
+      <div class="radio-btn selected" data-val="1.5">1,5 JS</div>
+      <div class="radio-btn" data-val="3">3 JS (armement 3ème remorqueur)</div>
+    </div>
+
+    <label style="margin-top:14px;">Marins concernés</label>
+    <div class="marins-grid" id="rcMarins"></div>
+
+    <label>Ajouter un CDD</label>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="rcCddNom" placeholder="Nom Prénom CDD" style="flex:1;">
+      <button class="btn-sm info" onclick="ajouterCdd('rc')" style="margin-top:0;padding:10px 14px;">+</button>
+    </div>
+
+    <div id="mailPreviewRC" style="display:none;">
+      <div class="section-title">📧 Mail prêt à copier</div>
+      <div class="mail-box" id="mailTextRC"></div>
+      <button class="btn btn-outline" style="margin-top:10px;" onclick="copierMail('mailTextRC')">📋 Copier le mail</button>
+    </div>
+
+    <button class="btn btn-primary" onclick="sauvegarderRC()">💾 Enregistrer</button>
+  </div>
+
+  <!-- Service Form -->
+  <div id="formService" class="card" style="display:none;">
+    <div class="card-title">👨‍✈️ Primes de service</div>
+
+    <label>Mois concerné</label>
+    <input type="month" id="srvMois">
+
+    <label>Nombre de croche sur le mois</label>
+    <input type="number" id="srvCroche" min="0" placeholder="0">
+
+    <label>Jours de capitaine de service</label>
+    <input type="number" id="srvJoursCapSrv" min="0" placeholder="0">
+
+    <label>Prime remorque — mois à payer (mois+1)</label>
+    <input type="number" id="srvPrimeRemorque" min="0" step="0.01" placeholder="Montant en €">
+
+    <button class="btn btn-gold" onclick="sauvegarderService()">💾 Enregistrer</button>
+  </div>
+
+  <!-- Remorque Form (saisie prime future) -->
+  <div id="formRemorque" class="card" style="display:none;">
+    <div class="card-title">🚢 Prime de remorque (saisie mensuelle)</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">La prime de remorque est versée à mois+1. Saisis le montant estimé ici pour le suivi.</p>
+
+    <label>Mois d'activité (mois qui génère la prime)</label>
+    <input type="month" id="remMoisActivite">
+
+    <label>Montant estimé de la prime (€)</label>
+    <input type="number" id="remMontant" min="0" step="0.01" placeholder="0.00">
+
+    <button class="btn btn-primary" onclick="sauvegarderRemorque()">💾 Enregistrer</button>
+  </div>
+</div>
+
+<!-- ── PAGE VOYAGE ── -->
+<div id="pageVoyage" class="page">
+  <div class="card">
+    <div class="card-title">🌊 Nouveau voyage extérieur</div>
+
+    <label>Date du voyage</label>
+    <input type="date" id="vDate">
+
+    <label>Destination / Description</label>
+    <input type="text" id="vDest" placeholder="ex: Saint-Nazaire — Remorquage plateforme">
+
+    <label>Total facturé (€)</label>
+    <input type="number" id="vFacture" min="0" step="0.01" placeholder="0.00">
+
+    <label>Consommation carburant (litres)</label>
+    <input type="number" id="vConso" min="0" step="0.01" placeholder="0">
+
+    <label>Prix carburant (€/litre)</label>
+    <input type="number" id="vPrixCarbu" min="0" step="0.001" placeholder="0.000">
+
+    <label>Autres frais (€)</label>
+    <input type="number" id="vFrais" min="0" step="0.01" placeholder="0.00">
+
+    <div class="section-title">Équipage (faisant le voyage)</div>
+    <div id="equipageContainer"></div>
+    <button class="btn btn-outline" onclick="ajouterEquipageRow()" style="margin-top:0;">+ Ajouter un membre</button>
+
+    <div id="voyageResult" class="voyage-result" style="display:none; margin-top:14px;"></div>
+
+    <button class="btn btn-primary" onclick="calculerVoyage()">🧮 Calculer</button>
+    <button class="btn btn-gold" id="btnSauveVoyage" style="display:none;" onclick="sauvegarderVoyage()">💾 Enregistrer le voyage</button>
+  </div>
+
+  <!-- Récap voyages -->
+  <div class="card">
+    <div class="card-title">📊 Récapitulatif voyages</div>
+    <div class="section-title">✅ Payés</div>
+    <div id="voyagesPaids"></div>
+    <div class="section-title" style="margin-top:16px;">⏳ En attente</div>
+    <div id="voyagesUnpaid"></div>
+  </div>
+</div>
+
+<!-- ── PAGE RÉCAP ── -->
+<div id="pageRecap" class="page">
+  <div class="month-selector">
+    <button class="month-nav-btn" onclick="changerMois(-1)">‹</button>
+    <span class="month-label" id="monthLabel"></span>
+    <button class="month-nav-btn" onclick="changerMois(1)">›</button>
+  </div>
+
+  <div class="totaux-grid">
+    <div class="total-box">
+      <div class="total-box-val" id="totalJS">0</div>
+      <div class="total-box-lbl">Jours supplémentaires</div>
+    </div>
+    <div class="total-box">
+      <div class="total-box-val" id="totalVoyage">0 €</div>
+      <div class="total-box-lbl">Voyages extérieurs</div>
+    </div>
+    <div class="total-box">
+      <div class="total-box-val" id="totalRemorque">0 €</div>
+      <div class="total-box-lbl">Prime remorque</div>
+    </div>
+    <div class="total-box">
+      <div class="total-box-val" id="totalService">0 €</div>
+      <div class="total-box-lbl">Prime capitaine svc</div>
+    </div>
+  </div>
+
+  <div id="recapList"></div>
+</div>
+
+<!-- ── PAGE CONFIG ── -->
+<div id="pageConfig" class="page">
+  <div class="card">
+    <div class="card-title">👥 Équipage CDI</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Ces marins apparaissent dans les sélecteurs. Tu peux modifier les noms directement.</p>
+    <div id="marinsConfigList"></div>
+    <button class="btn btn-outline" onclick="sauvegarderMarins()" style="margin-top:12px;">💾 Sauvegarder l'équipage</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💰 Taux prime capitaine de service</div>
+    <label>Montant par jour de service (€)</label>
+    <input type="number" id="cfgTauxCapSrv" min="0" step="0.01" placeholder="ex: 45.00">
+    <label>Montant par croche (€)</label>
+    <input type="number" id="cfgTauxCroche" min="0" step="0.01" placeholder="ex: 30.00">
+    <button class="btn btn-outline" onclick="sauvegarderConfig()">💾 Sauvegarder</button>
+  </div>
+
+  <div class="card" style="border-color: rgba(240,165,0,0.3);">
+    <div class="card-title">ℹ️ Connexion Supabase</div>
+    <p style="font-size:12px;color:var(--muted);">Projet : ypbkkudsztqsnqgbqjyg.supabase.co</p>
+    <div id="cfgStatus" style="margin-top:8px;font-size:12px;"></div>
+  </div>
+
+  <div class="card" style="border-color: rgba(240,165,0,0.3);">
+    <div class="card-title">🔒 Mot de passe</div>
+    <label>Mot de passe actuel</label>
+    <div style="position:relative;">
+      <input type="password" id="pwdActuel" placeholder="••••••••" style="padding-right:44px;">
+      <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;color:var(--muted);" onclick="togglePwd('pwdActuel')">👁️</span>
+    </div>
+    <label>Nouveau mot de passe</label>
+    <div style="position:relative;">
+      <input type="password" id="pwdNouveau" placeholder="••••••••" style="padding-right:44px;">
+      <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;color:var(--muted);" onclick="togglePwd('pwdNouveau')">👁️</span>
+    </div>
+    <label>Confirmer le nouveau mot de passe</label>
+    <div style="position:relative;">
+      <input type="password" id="pwdConfirm" placeholder="••••••••" style="padding-right:44px;">
+      <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);cursor:pointer;font-size:18px;color:var(--muted);" onclick="togglePwd('pwdConfirm')">👁️</span>
+    </div>
+    <button class="btn btn-gold" onclick="changerMotDePasse()" style="margin-top:16px;">🔒 Changer le mot de passe</button>
+    <button class="btn btn-outline" onclick="seDeconnecter()" style="margin-top:8px;">🚪 Se déconnecter</button>
+  </div>
+
+</div>
+
+<!-- ── NAV ── -->
+<nav class="nav">
+  <button class="nav-btn active" onclick="goPage('pageSaisie',this)">
+    <span class="nav-ico">✏️</span>Saisie
+  </button>
+  <button class="nav-btn" onclick="goPage('pageVoyage',this)">
+    <span class="nav-ico">🌊</span>Voyages
+  </button>
+  <button class="nav-btn" onclick="goPage('pageRecap',this)">
+    <span class="nav-ico">📊</span>Récap
+  </button>
+  <button class="nav-btn" onclick="goPage('pageConfig',this)">
+    <span class="nav-ico">⚙️</span>Config
+  </button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Auth ──
+const PWD_KEY = 'rem_pwd';
+const SESSION_KEY = 'rem_session';
+const DEFAULT_PWD = 'lorient';
+
+function getStoredPwd() {
+  return localStorage.getItem(PWD_KEY) || DEFAULT_PWD;
+}
+
+function checkLogin() {
+  const input = document.getElementById('loginInput').value;
+  const stored = getStoredPwd();
+  if (input === stored) {
+    // Session valable 12h
+    localStorage.setItem(SESSION_KEY, Date.now() + 12*60*60*1000);
+    document.getElementById('loginScreen').classList.add('hidden');
+    init();
+  } else {
+    const box = document.getElementById('loginBox') || document.querySelector('.login-box');
+    box.classList.add('shake');
+    setTimeout(() => box.classList.remove('shake'), 400);
+    document.getElementById('loginError').textContent = 'Mot de passe incorrect';
+    document.getElementById('loginInput').value = '';
+  }
+}
+
+function toggleLoginEye() {
+  const inp = document.getElementById('loginInput');
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function togglePwd(id) {
+  const inp = document.getElementById(id);
+  inp.type = inp.type === 'password' ? 'text' : 'password';
+}
+
+function changerMotDePasse() {
+  const actuel = document.getElementById('pwdActuel').value;
+  const nouveau = document.getElementById('pwdNouveau').value;
+  const confirm = document.getElementById('pwdConfirm').value;
+  if (actuel !== getStoredPwd()) { toast('❌ Mot de passe actuel incorrect'); return; }
+  if (!nouveau || nouveau.length < 4) { toast('⚠️ Mot de passe trop court (min 4 caractères)'); return; }
+  if (nouveau !== confirm) { toast('⚠️ Les mots de passe ne correspondent pas'); return; }
+  localStorage.setItem(PWD_KEY, nouveau);
+  document.getElementById('pwdActuel').value = '';
+  document.getElementById('pwdNouveau').value = '';
+  document.getElementById('pwdConfirm').value = '';
+  toast('✅ Mot de passe changé avec succès');
+}
+
+function seDeconnecter() {
+  localStorage.removeItem(SESSION_KEY);
+  location.reload();
+}
+
+function checkSession() {
+  const exp = parseInt(localStorage.getItem(SESSION_KEY) || '0');
+  if (Date.now() < exp) {
+    document.getElementById('loginScreen').classList.add('hidden');
+    return true;
+  }
+  return false;
+}
+
+// Vérifier session au chargement
+if (checkSession()) {
+  init();
+}
+
+// ── Supabase init ──
+const SUPA_URL = 'https://ypbkkudsztqsnqgbqjyg.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlwYmtrdWRzenRxc25xZ2JxanlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNDU2NDgsImV4cCI6MjA5MTgyMTY0OH0.tyTFTfaQp-44ubjcrQNqIPg7jSVPBBWZqdsV2cyeR9A';
+const { createClient } = supabase;
+const db = createClient(SUPA_URL, SUPA_KEY);
+
+// ── SQL à exécuter dans Supabase ──
+/*
+CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS marins (id SERIAL PRIMARY KEY, nom TEXT, prenom TEXT, poste TEXT, ordre INT);
+CREATE TABLE IF NOT EXISTS evenements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT, date DATE, mois TEXT,
+  navire TEXT, heure_cmd TIME, heure_pab TIME, jour_cmd TEXT,
+  motif TEXT, js NUMERIC, eligible BOOLEAN,
+  marins_json TEXT,
+  croche INT, jours_cap_srv INT, prime_remorque NUMERIC,
+  montant NUMERIC, regle BOOLEAN DEFAULT FALSE, date_paiement DATE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS voyages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE, destination TEXT,
+  facture NUMERIC, conso NUMERIC, prix_carbu NUMERIC, frais NUMERIC,
+  resultat NUMERIC, part_antoine NUMERIC,
+  equipage_json TEXT,
+  regle BOOLEAN DEFAULT FALSE, date_paiement DATE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+*/
+
+// ── État app ──
+let currentPage = 'pageSaisie';
+let currentMois = new Date().toISOString().slice(0,7); // YYYY-MM
+let marinsData = [];
+let config = { taux_cap_srv: 0, taux_croche: 0 };
+let voyageCalcData = null;
+let cddExtras = { chd: [], rc: [] };
+
+const MARINS_DEFAULT = [
+  {nom:'JOSSE',prenom:'Antoine',poste:'Capitaine'},
+  {nom:'LEVEQUE',prenom:'Arnaud',poste:'Matelot'},
+  {nom:'TONNERRE',prenom:'Mickaël',poste:'Matelot'},
+  {nom:'MARTIN',prenom:'Jean',poste:'Second Capitaine'},
+  {nom:'BERNARD',prenom:'Pierre',poste:'Chef mécanicien'},
+  {nom:'DUPONT',prenom:'Luc',poste:'Matelot'},
+  {nom:'MOREAU',prenom:'Yves',poste:'Matelot'},
+  {nom:'THOMAS',prenom:'François',poste:'Capitaine'},
+  {nom:'RICHARD',prenom:'Alain',poste:'Second Capitaine'},
+  {nom:'PETIT',prenom:'Jacques',poste:'Chef mécanicien'},
+  {nom:'SIMON',prenom:'René',poste:'Matelot'},
+  {nom:'DAVID',prenom:'Marc',poste:'Matelot'},
+  {nom:'ROBERT',prenom:'Gilles',poste:'Matelot'},
+];
+
+// ── Init ──
+async function init() {
+  await initTables();
+  await loadConfig();
+  await loadMarins();
+  renderMarinsConfig();
+  renderMarinsChips('chdMarins', 'chd');
+  renderMarinsChips('rcMarins', 'rc');
+  renderEquipageInitial();
+  bindTypeRadios();
+  bindJsRadios('chdJsGroup');
+  bindJsRadios('rcJsGroup');
+  setChdEligibilityCheck();
+  setDefaultDates();
+  await loadRecap();
+  await loadVoyages();
+}
+
+async function initTables() {
+  // Test connexion
+  try {
+    const { error } = await db.from('config').select('key').limit(1);
+    if (error && error.code === '42P01') {
+      // Tables n'existent pas encore — on affiche le guide SQL
+      document.getElementById('cfgStatus').innerHTML =
+        '<span style="color:var(--danger)">⚠️ Tables manquantes. Exécute le SQL dans Supabase (onglet Config).</span>';
+      showSQLGuide();
+    } else if (!error) {
+      document.getElementById('connDot').classList.add('ok');
+      document.getElementById('cfgStatus').innerHTML = '<span style="color:var(--success)">✅ Connecté</span>';
+    }
+  } catch(e) {
+    document.getElementById('connDot').classList.add('err');
+  }
+}
+
+function showSQLGuide() {
+  const sql = `-- Coller dans Supabase > SQL Editor > New query
+
+CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT);
+
+CREATE TABLE IF NOT EXISTS marins (
+  id SERIAL PRIMARY KEY,
+  nom TEXT, prenom TEXT, poste TEXT, ordre INT
+);
+
+CREATE TABLE IF NOT EXISTS evenements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT, date DATE, mois TEXT,
+  navire TEXT, heure_cmd TIME, heure_pab TIME, jour_cmd TEXT,
+  motif TEXT, js NUMERIC, eligible BOOLEAN,
+  marins_json TEXT,
+  croche INT, jours_cap_srv INT, prime_remorque NUMERIC,
+  montant NUMERIC, regle BOOLEAN DEFAULT FALSE, date_paiement DATE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS voyages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  date DATE, destination TEXT,
+  facture NUMERIC, conso NUMERIC, prix_carbu NUMERIC, frais NUMERIC,
+  resultat NUMERIC, part_antoine NUMERIC,
+  equipage_json TEXT,
+  regle BOOLEAN DEFAULT FALSE, date_paiement DATE,
+  created_at TIMESTAMP DEFAULT NOW()
+);`;
+
+  const div = document.createElement('div');
+  div.className = 'card';
+  div.style.borderColor = 'rgba(240,165,0,0.5)';
+  div.innerHTML = `
+    <div class="card-title">🛠️ Initialisation base de données</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">Copie ce SQL dans <b>Supabase → SQL Editor → New query</b> puis clique Run :</p>
+    <div class="mail-box" style="font-size:11px;">${sql}</div>
+    <button class="btn btn-gold" onclick="copierSQL(this)" style="margin-top:10px;">📋 Copier le SQL</button>
+  `;
+  div._sql = sql;
+  document.getElementById('pageConfig').insertBefore(div, document.getElementById('pageConfig').firstChild);
+}
+
+async function copierSQL(btn) {
+  const sql = btn.closest('.card')._sql;
+  await navigator.clipboard.writeText(sql);
+  toast('SQL copié ! Colle-le dans Supabase SQL Editor');
+}
+
+async function loadConfig() {
+  try {
+    const { data } = await db.from('config').select('*');
+    if (data) {
+      data.forEach(r => {
+        if (r.key === 'taux_cap_srv') config.taux_cap_srv = parseFloat(r.value)||0;
+        if (r.key === 'taux_croche') config.taux_croche = parseFloat(r.value)||0;
+      });
+    }
+    document.getElementById('cfgTauxCapSrv').value = config.taux_cap_srv || '';
+    document.getElementById('cfgTauxCroche').value = config.taux_croche || '';
+  } catch(e) {}
+}
+
+async function sauvegarderConfig() {
+  config.taux_cap_srv = parseFloat(document.getElementById('cfgTauxCapSrv').value)||0;
+  config.taux_croche = parseFloat(document.getElementById('cfgTauxCroche').value)||0;
+  try {
+    await db.from('config').upsert([
+      {key:'taux_cap_srv', value: String(config.taux_cap_srv)},
+      {key:'taux_croche', value: String(config.taux_croche)},
+    ]);
+    toast('✅ Configuration sauvegardée');
+  } catch(e) { toast('❌ Erreur sauvegarde'); }
+}
+
+async function loadMarins() {
+  try {
+    const { data } = await db.from('marins').select('*').order('ordre');
+    if (data && data.length > 0) {
+      marinsData = data;
+    } else {
+      // Pré-remplir avec défauts
+      marinsData = MARINS_DEFAULT.map((m,i) => ({...m, ordre:i}));
+      await db.from('marins').insert(marinsData);
+    }
+  } catch(e) {
+    marinsData = MARINS_DEFAULT.map((m,i) => ({...m, ordre:i}));
+  }
+}
+
+async function sauvegarderMarins() {
+  const inputs = document.querySelectorAll('#marinsConfigList .marin-config-row');
+  const newMarins = [];
+  inputs.forEach((row, i) => {
+    const nom = row.querySelector('.cfg-nom').value.trim();
+    const prenom = row.querySelector('.cfg-prenom').value.trim();
+    const poste = row.querySelector('.cfg-poste').value;
+    if (nom) newMarins.push({nom, prenom, poste, ordre:i});
+  });
+  try {
+    await db.from('marins').delete().neq('id', 0);
+    await db.from('marins').insert(newMarins);
+    marinsData = newMarins;
+    renderMarinsChips('chdMarins', 'chd');
+    renderMarinsChips('rcMarins', 'rc');
+    toast('✅ Équipage sauvegardé');
+  } catch(e) { toast('❌ Erreur'); }
+}
+
+function renderMarinsConfig() {
+  const container = document.getElementById('marinsConfigList');
+  container.innerHTML = '';
+  const postes = ['Capitaine','Second Capitaine','Chef mécanicien','Matelot'];
+  marinsData.forEach((m, i) => {
+    const div = document.createElement('div');
+    div.className = 'marin-config-row';
+    div.style.cssText = 'display:flex;gap:6px;margin-bottom:8px;align-items:center;';
+    div.innerHTML = `
+      <input class="cfg-prenom" type="text" value="${m.prenom||''}" placeholder="Prénom" style="flex:1.2;">
+      <input class="cfg-nom" type="text" value="${m.nom||''}" placeholder="NOM" style="flex:1.2;">
+      <select class="cfg-poste" style="flex:1.5;">
+        ${postes.map(p=>`<option ${p===m.poste?'selected':''}>${p}</option>`).join('')}
+      </select>
+    `;
+    container.appendChild(div);
+  });
+  // Bouton ajouter
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn-sm info';
+  addBtn.style.marginTop = '6px';
+  addBtn.textContent = '+ Ajouter marin';
+  addBtn.onclick = () => {
+    marinsData.push({nom:'',prenom:'',poste:'Matelot',ordre:marinsData.length});
+    renderMarinsConfig();
+  };
+  container.appendChild(addBtn);
+}
+
+function renderMarinsChips(containerId, type) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+  const toShow = marinsData.filter(m => !(m.nom === 'JOSSE' && m.prenom === 'Antoine'));
+  [...toShow, ...(cddExtras[type]||[])].forEach(m => {
+    const chip = document.createElement('div');
+    chip.className = 'marin-chip';
+    chip.dataset.nom = m.nom;
+    chip.dataset.prenom = m.prenom;
+    chip.textContent = `${m.prenom} ${m.nom}`;
+    chip.onclick = () => {
+      chip.classList.toggle('selected');
+      if (type === 'chd') genMailCHD();
+      if (type === 'rc') genMailRC();
+    };
+    container.appendChild(chip);
+  });
+}
+
+function ajouterCdd(type) {
+  const input = document.getElementById(type === 'chd' ? 'chdCddNom' : 'rcCddNom');
+  const val = input.value.trim();
+  if (!val) return;
+  const parts = val.split(' ');
+  const prenom = parts[0];
+  const nom = parts.slice(1).join(' ').toUpperCase();
+  if (!cddExtras[type]) cddExtras[type] = [];
+  cddExtras[type].push({nom, prenom, poste:'CDD'});
+  input.value = '';
+  renderMarinsChips(type === 'chd' ? 'chdMarins' : 'rcMarins', type);
+}
+
+// ── Type selector ──
+function bindTypeRadios() {
+  document.getElementById('typeGroup').querySelectorAll('.radio-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('typeGroup').querySelectorAll('.radio-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      const val = btn.dataset.val;
+      ['formCHD','formRC','formService','formRemorque'].forEach(f => document.getElementById(f).style.display='none');
+      if (val==='chd') document.getElementById('formCHD').style.display='block';
+      if (val==='rc') document.getElementById('formRC').style.display='block';
+      if (val==='service') document.getElementById('formService').style.display='block';
+      if (val==='remorque') document.getElementById('formRemorque').style.display='block';
+    });
+  });
+}
+
+function bindJsRadios(groupId) {
+  document.getElementById(groupId).querySelectorAll('.radio-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById(groupId).querySelectorAll('.radio-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+  });
+}
+
+function getSelectedRadio(groupId) {
+  const sel = document.querySelector(`#${groupId} .radio-btn.selected`);
+  return sel ? sel.dataset.val : null;
+}
+
+function setDefaultDates() {
+  const today = new Date().toISOString().slice(0,10);
+  ['chdDate','chdDateCmd','rcDate','vDate'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = today;
+  });
+  const thisMonth = new Date().toISOString().slice(0,7);
+  ['srvMois','remMoisActivite'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = thisMonth;
+  });
+}
+
+// ── CHD eligibility check ──
+function setChdEligibilityCheck() {
+  ['chdHeureCmd','chdHeurePAB','chdDate','chdDateCmd'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', checkChdEligible);
+  });
+}
+
+function checkChdEligible() {
+  const dateCmd      = document.getElementById('chdDateCmd').value;
+  const heureCmd     = document.getElementById('chdHeureCmd').value;
+  const dateManoeuvre= document.getElementById('chdDate').value;
+  const heurePAB     = document.getElementById('chdHeurePAB').value;
+  const el           = document.getElementById('chdEligible');
+
+  if (!heureCmd || !heurePAB || !dateManoeuvre || !dateCmd) { el.style.display='none'; return; }
+
+  const dtCmd = new Date(dateCmd + 'T' + heureCmd + ':00');
+  const dtPAB = new Date(dateManoeuvre + 'T' + heurePAB + ':00');
+
+  const jourPAB = dtPAB.getDay(); // 0=dim,1=lun,...,6=sam
+  const hPAB    = dtPAB.getHours() * 60 + dtPAB.getMinutes();
+  const hCmd    = dtCmd.getHours() * 60 + dtCmd.getMinutes();
+  const H830    = 8*60+30;
+  const H17     = 17*60;
+
+  // Délai réel en minutes entre commande et PAB
+  const delaiReelMin = Math.round((dtPAB - dtCmd) / 60000);
+  const preavi2hOK   = delaiReelMin >= 120;
+
+  // ── Condition 1 : heure limite de commande selon le moment de la manœuvre ──
+  // ── Condition 2 : préavis minimum 2h entre commande et PAB (toujours) ──
+  // Les DEUX doivent être respectées. Sinon → hors délai → 1,5 JS.
+
+  let cond1OK = false;
+  let regle1 = '';
+  let regle2 = preavi2hOK ? '✅ Préavis ≥ 2h' : '❌ Préavis < 2h';
+
+  if (jourPAB === 0 || jourPAB === 6) {
+    // Week-end → commande doit être passée le vendredi précédent avant 17h
+    const vendredi = new Date(dtPAB);
+    const daysBack = jourPAB === 6 ? 1 : 2;
+    vendredi.setDate(vendredi.getDate() - daysBack);
+    vendredi.setHours(17, 0, 0, 0);
+    cond1OK = dtCmd <= vendredi;
+    regle1 = `Manœuvre week-end → commandée vendredi avant 17h ${cond1OK ? '✅' : '❌'}`;
+
+  } else if (jourPAB === 1 && hPAB < H830) {
+    // Lundi avant 8h30 → commandée vendredi avant 17h
+    const vendredi = new Date(dtPAB);
+    vendredi.setDate(vendredi.getDate() - 3);
+    vendredi.setHours(17, 0, 0, 0);
+    cond1OK = dtCmd <= vendredi;
+    regle1 = `Manœuvre lundi avant 8h30 → commandée vendredi avant 17h ${cond1OK ? '✅' : '❌'}`;
+
+  } else if (jourPAB >= 2 && jourPAB <= 5 && hPAB < H830) {
+    // Mar–ven avant 8h30 → commandée la veille avant 17h
+    const veille = new Date(dtPAB);
+    veille.setDate(veille.getDate() - 1);
+    veille.setHours(17, 0, 0, 0);
+    cond1OK = dtCmd <= veille;
+    regle1 = `Manœuvre jour ouvré avant 8h30 → commandée veille avant 17h ${cond1OK ? '✅' : '❌'}`;
+
+  } else if (jourPAB >= 1 && jourPAB <= 5 && hPAB >= H830 && hPAB < H17) {
+    // Jour ouvré 8h30–17h → commandée avant 8h30 le jour même
+    const limiteJour = new Date(dtPAB);
+    limiteJour.setHours(8, 30, 0, 0);
+    cond1OK = dtCmd <= limiteJour;
+    regle1 = `Manœuvre jour ouvré 8h30-17h → commandée avant 8h30 le jour même ${cond1OK ? '✅' : '❌'}`;
+
+  } else {
+    // Jour ouvré après 17h → commandée avant 17h le jour même
+    const limite17 = new Date(dtPAB);
+    limite17.setHours(17, 0, 0, 0);
+    cond1OK = dtCmd <= limite17;
+    regle1 = `Manœuvre après 17h → commandée avant 17h le jour même ${cond1OK ? '✅' : '❌'}`;
+  }
+
+  // Hors délai si UNE des deux conditions non respectée
+  const delaiRespected = cond1OK && preavi2hOK;
+  const eligible = !delaiRespected;
+
+  const fmtDT = (d) => d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})
+    + ' à ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+  const delaiH = Math.floor(Math.abs(delaiReelMin)/60);
+  const delaiM = Math.abs(delaiReelMin) % 60;
+
+  el.style.display = 'block';
+  if (eligible) {
+    el.style.background = 'rgba(60,184,120,0.15)';
+    el.style.border = '1px solid rgba(60,184,120,0.4)';
+    el.style.color = 'var(--success)';
+    el.innerHTML = `✅ <b>HORS DÉLAI — 1,5 JS accordé</b><br><br>
+      <span style="color:var(--muted)">📞 Commande :</span> ${fmtDT(dtCmd)}<br>
+      <span style="color:var(--muted)">⚓ Manœuvre (PAB) :</span> ${fmtDT(dtPAB)}<br>
+      <span style="color:var(--muted)">⏱ Délai réel :</span> ${delaiH}h${delaiM.toString().padStart(2,'0')}<br>
+      <span style="color:var(--muted)">Condition heure :</span> ${regle1}<br>
+      <span style="color:var(--muted)">Préavis 2h :</span> ${regle2}`;
+  } else {
+    el.style.background = 'rgba(224,85,85,0.15)';
+    el.style.border = '1px solid rgba(224,85,85,0.4)';
+    el.style.color = 'var(--danger)';
+    el.innerHTML = `⚠️ <b>Délai respecté — pas de compensation</b><br><br>
+      <span style="color:var(--muted)">📞 Commande :</span> ${fmtDT(dtCmd)}<br>
+      <span style="color:var(--muted)">⚓ Manœuvre (PAB) :</span> ${fmtDT(dtPAB)}<br>
+      <span style="color:var(--muted)">⏱ Délai réel :</span> ${delaiH}h${delaiM.toString().padStart(2,'0')}<br>
+      <span style="color:var(--muted)">Condition heure :</span> ${regle1}<br>
+      <span style="color:var(--muted)">Préavis 2h :</span> ${regle2}`;
+  }
+
+  genMailCHD();
+}
+
+// ── Mail CHD ──
+function genMailCHD() {
+  const navire = document.getElementById('chdNavire').value || '[NAVIRE]';
+  const heureCmd = document.getElementById('chdHeureCmd').value || '[heure]';
+  const heurePAB = document.getElementById('chdHeurePAB').value || '[heure]';
+  const dateCmd = document.getElementById('chdDateCmd').value;
+  const date = document.getElementById('chdDate').value;
+  const js = getSelectedRadio('chdJsGroup');
+
+  const dateObj = date ? new Date(date+'T12:00:00') : new Date();
+  const dateCmdObj = dateCmd ? new Date(dateCmd+'T12:00:00') : new Date();
+  const jourPABLabel = dateObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+  const jourCmdLabel = dateCmdObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+
+  const marinsSelected = [...document.querySelectorAll('#chdMarins .marin-chip.selected')];
+  const lignesMarins = marinsSelected.map(c => {
+    const nom = c.dataset.nom;
+    const prenom = c.dataset.prenom;
+    const m = marinsData.find(x => x.nom===nom && x.prenom===prenom) || {poste:''};
+    return `${prenom} ${nom} sur salaire`;
+  }).join('\n');
+
+  const mail = `Bonjour,
+
+Suite commande hors délai pour l'entrée du ${navire}, commande passée à ${heureCmd} le ${jourCmdLabel} pour manœuvre à ${heurePAB} le ${jourPABLabel}.
+
+Merci de verser ${js} JS à :
+Antoine JOSSE sur salaire
+${lignesMarins || '[Sélectionner les marins ci-dessus]'}
+
+Merci et bonne journée
+Antoine`;
+
+  document.getElementById('mailTextCHD').textContent = mail;
+  document.getElementById('mailPreviewCHD').style.display = 'block';
+}
+
+// ── Mail RC ──
+function genMailRC() {
+  const date = document.getElementById('rcDate').value;
+  const motif = document.getElementById('rcMotif').value || '[motif]';
+  const js = getSelectedRadio('rcJsGroup');
+
+  const dateObj = date ? new Date(date+'T12:00:00') : new Date();
+  const dateLabel = dateObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+
+  const marinsSelected = [...document.querySelectorAll('#rcMarins .marin-chip.selected')];
+  const lignesMarins = marinsSelected.map(c => `${c.dataset.prenom} ${c.dataset.nom} sur salaire`).join('\n');
+
+  const mail = `Bonjour,
+
+Suite rappel sur congés le ${dateLabel} — ${motif}.
+
+Merci de verser ${js} JS à :
+Antoine JOSSE sur salaire
+${lignesMarins || '[Sélectionner les marins ci-dessus]'}
+
+Merci et bonne journée
+Antoine`;
+
+  document.getElementById('mailTextRC').textContent = mail;
+  document.getElementById('mailPreviewRC').style.display = 'block';
+}
+
+async function copierMail(id) {
+  const text = document.getElementById(id).textContent;
+  await navigator.clipboard.writeText(text);
+  toast('📋 Mail copié ! Colle dans Outlook');
+}
+
+// ── Sauvegardes événements ──
+function getMoisFromDate(date) {
+  return date ? date.slice(0,7) : new Date().toISOString().slice(0,7);
+}
+
+async function sauvegarderCHD() {
+  const date = document.getElementById('chdDate').value;
+  const navire = document.getElementById('chdNavire').value;
+  const heureCmd = document.getElementById('chdHeureCmd').value;
+  const heurePAB = document.getElementById('chdHeurePAB').value;
+  const jourCmd = document.getElementById('chdJourCmd').value;
+  const js = parseFloat(getSelectedRadio('chdJsGroup'));
+  const marinsSelected = [...document.querySelectorAll('#chdMarins .marin-chip.selected')]
+    .map(c => `${c.dataset.prenom} ${c.dataset.nom}`);
+
+  if (!date || !navire) { toast('⚠️ Complète la date et le navire'); return; }
+
+  const { error } = await db.from('evenements').insert({
+    type:'chd', date, mois: getMoisFromDate(date),
+    navire, heure_cmd: heureCmd, heure_pab: heurePAB,
+    jour_cmd: jourCmd, js, regle: false,
+    marins_json: JSON.stringify(marinsSelected)
+  });
+
+  if (error) { toast('❌ Erreur : ' + error.message); return; }
+  toast('✅ Commande hors délai enregistrée');
+  document.getElementById('chdNavire').value = '';
+  await loadRecap();
+}
+
+async function sauvegarderRC() {
+  const date = document.getElementById('rcDate').value;
+  const motif = document.getElementById('rcMotif').value;
+  const js = parseFloat(getSelectedRadio('rcJsGroup'));
+  const marinsSelected = [...document.querySelectorAll('#rcMarins .marin-chip.selected')]
+    .map(c => `${c.dataset.prenom} ${c.dataset.nom}`);
+
+  if (!date) { toast('⚠️ Complète la date'); return; }
+
+  const { error } = await db.from('evenements').insert({
+    type:'rc', date, mois: getMoisFromDate(date),
+    motif, js, regle: false,
+    marins_json: JSON.stringify(marinsSelected)
+  });
+
+  if (error) { toast('❌ Erreur : ' + error.message); return; }
+  toast('✅ Rappel congés enregistré');
+  await loadRecap();
+}
+
+async function sauvegarderService() {
+  const mois = document.getElementById('srvMois').value;
+  const croche = parseInt(document.getElementById('srvCroche').value)||0;
+  const joursCapSrv = parseInt(document.getElementById('srvJoursCapSrv').value)||0;
+  const primeRemorque = parseFloat(document.getElementById('srvPrimeRemorque').value)||0;
+
+  const montant = (croche * config.taux_croche) + (joursCapSrv * config.taux_cap_srv);
+
+  const { error } = await db.from('evenements').insert({
+    type:'service', date: mois+'-01', mois,
+    croche, jours_cap_srv: joursCapSrv,
+    prime_remorque: primeRemorque,
+    montant, regle: false
+  });
+
+  if (error) { toast('❌ Erreur : ' + error.message); return; }
+  toast('✅ Primes de service enregistrées');
+  await loadRecap();
+}
+
+async function sauvegarderRemorque() {
+  const moisActivite = document.getElementById('remMoisActivite').value;
+  const montant = parseFloat(document.getElementById('remMontant').value)||0;
+  // Paiement mois+1
+  const [y,m] = moisActivite.split('-').map(Number);
+  const moisPaie = new Date(y, m, 1).toISOString().slice(0,7);
+
+  const { error } = await db.from('evenements').insert({
+    type:'remorque', date: moisActivite+'-01', mois: moisPaie,
+    motif: `Activité ${moisActivite}`,
+    montant, regle: false
+  });
+
+  if (error) { toast('❌ Erreur : ' + error.message); return; }
+  toast('✅ Prime remorque enregistrée (payable en ' + moisPaie + ')');
+  await loadRecap();
+}
+
+// ── VOYAGE ──
+function renderEquipageInitial() {
+  const c = document.getElementById('equipageContainer');
+  c.innerHTML = '';
+  ajouterEquipageRow();
+}
+
+function ajouterEquipageRow() {
+  const c = document.getElementById('equipageContainer');
+  const row = document.createElement('div');
+  row.className = 'equipage-row';
+
+  const postes = ['Capitaine','Chef mécanicien','Second Capitaine','Matelot'];
+  const types = ['Voyage','Absent'];
+
+  const allMarins = [...marinsData];
+
+  row.innerHTML = `
+    <select class="eq-poste" onchange="calculerVoyageLive()">
+      ${postes.map(p=>`<option>${p}</option>`).join('')}
+    </select>
+    <select class="eq-type" onchange="calculerVoyageLive()">
+      ${types.map(t=>`<option>${t}</option>`).join('')}
+    </select>
+    <button class="remove-btn" onclick="this.parentElement.remove();calculerVoyageLive()">×</button>
+  `;
+  c.appendChild(row);
+}
+
+function calculerVoyageLive() {
+  const facture = parseFloat(document.getElementById('vFacture').value)||0;
+  if (facture > 0) calculerVoyage(false);
+}
+
+const PARTS_POSTE = {
+  'Capitaine': 6,
+  'Chef mécanicien': 5,
+  'Second Capitaine': 5,
+  'Matelot': 4,
+};
+const PARTS_ABSENT = 2;
+
+function calculerVoyage(save=true) {
+  const facture = parseFloat(document.getElementById('vFacture').value)||0;
+  const conso = parseFloat(document.getElementById('vConso').value)||0;
+  const prixCarbu = parseFloat(document.getElementById('vPrixCarbu').value)||0;
+  const frais = parseFloat(document.getElementById('vFrais').value)||0;
+
+  const coutCarbu = conso * prixCarbu;
+  const resultat = facture - coutCarbu - frais;
+  const moitieEquipage = resultat / 2;
+
+  // Équipage
+  const rows = document.querySelectorAll('#equipageContainer .equipage-row');
+  let totalParts = 0;
+  let antoineParts = 0;
+  const equip = [];
+
+  rows.forEach(row => {
+    const poste = row.querySelector('.eq-poste').value;
+    const type = row.querySelector('.eq-type').value;
+    const parts = type === 'Voyage' ? (PARTS_POSTE[poste]||4) : PARTS_ABSENT;
+    totalParts += parts;
+    equip.push({poste, type, parts});
+  });
+
+  // Antoine = capitaine faisant le voyage (6 parts)
+  antoineParts = 6;
+  totalParts += antoineParts;
+
+  const valeurPart = totalParts > 0 ? moitieEquipage / totalParts : 0;
+  const partAntoine = valeurPart * antoineParts;
+
+  voyageCalcData = { facture, conso, prixCarbu, frais, coutCarbu, resultat, moitieEquipage, partAntoine, equip, totalParts, valeurPart };
+
+  const resultDiv = document.getElementById('voyageResult');
+  resultDiv.style.display = 'block';
+  resultDiv.innerHTML = `
+    <div class="voyage-result-row"><span class="voyage-result-label">Total facturé</span><span>${facture.toFixed(2)} €</span></div>
+    <div class="voyage-result-row"><span class="voyage-result-label">Carburant (${conso}L × ${prixCarbu}€)</span><span>− ${coutCarbu.toFixed(2)} €</span></div>
+    <div class="voyage-result-row"><span class="voyage-result-label">Frais</span><span>− ${frais.toFixed(2)} €</span></div>
+    <div class="voyage-result-row"><span class="voyage-result-label">Résultat</span><span>${resultat.toFixed(2)} €</span></div>
+    <div class="voyage-result-row"><span class="voyage-result-label">Moitié équipage</span><span>${moitieEquipage.toFixed(2)} €</span></div>
+    <div class="voyage-result-row"><span class="voyage-result-label">Valeur 1 part (${totalParts} parts total)</span><span>${valeurPart.toFixed(2)} €</span></div>
+    <div class="voyage-result-row"><span class="voyage-result-label">Ta part (6 parts Capitaine)</span><span style="color:var(--gold2);font-size:18px;font-family:'Bebas Neue'">${partAntoine.toFixed(2)} €</span></div>
+  `;
+
+  if (save) document.getElementById('btnSauveVoyage').style.display = 'block';
+}
+
+async function sauvegarderVoyage() {
+  if (!voyageCalcData) return;
+  const date = document.getElementById('vDate').value;
+  const dest = document.getElementById('vDest').value;
+
+  const { error } = await db.from('voyages').insert({
+    date: date || new Date().toISOString().slice(0,10),
+    destination: dest,
+    facture: voyageCalcData.facture,
+    conso: voyageCalcData.conso,
+    prix_carbu: voyageCalcData.prixCarbu,
+    frais: voyageCalcData.frais,
+    resultat: voyageCalcData.resultat,
+    part_antoine: voyageCalcData.partAntoine,
+    equipage_json: JSON.stringify(voyageCalcData.equip),
+    regle: false
+  });
+
+  if (error) { toast('❌ ' + error.message); return; }
+  toast('✅ Voyage enregistré');
+  document.getElementById('btnSauveVoyage').style.display = 'none';
+  voyageCalcData = null;
+  await loadVoyages();
+}
+
+async function loadVoyages() {
+  const { data } = await db.from('voyages').select('*').order('date', {ascending:false});
+  const paid = data?.filter(v => v.regle) || [];
+  const unpaid = data?.filter(v => !v.regle) || [];
+
+  const renderVoyage = (v) => `
+    <div class="recap-item">
+      <div class="recap-item-left">
+        <div class="recap-item-title">${v.destination || 'Voyage'}</div>
+        <div class="recap-item-sub">${v.date} ${v.date_paiement ? '· Payé le '+v.date_paiement : ''}</div>
+      </div>
+      <div class="recap-item-right">
+        <span style="font-family:'Bebas Neue';font-size:18px;color:var(--gold2)">${parseFloat(v.part_antoine||0).toFixed(2)} €</span>
+        ${v.regle
+          ? `<button class="btn-sm danger" onclick="toggleVoyageRegle('${v.id}',false)">Annuler ✓</button>`
+          : `<button class="btn-sm success" onclick="marquerVoyageRegle('${v.id}')">✓ Payé</button>`
+        }
+      </div>
+    </div>
+  `;
+
+  document.getElementById('voyagesPaids').innerHTML = paid.length
+    ? paid.map(renderVoyage).join('')
+    : '<div class="no-data">Aucun voyage payé</div>';
+
+  document.getElementById('voyagesUnpaid').innerHTML = unpaid.length
+    ? unpaid.map(renderVoyage).join('')
+    : '<div class="no-data">Aucun voyage en attente</div>';
+}
+
+async function marquerVoyageRegle(id) {
+  const dp = prompt('Date de paiement (AAAA-MM-JJ) :') || new Date().toISOString().slice(0,10);
+  await db.from('voyages').update({regle:true, date_paiement:dp}).eq('id',id);
+  await loadVoyages();
+  toast('✅ Voyage marqué payé');
+}
+
+async function toggleVoyageRegle(id, val) {
+  await db.from('voyages').update({regle:val, date_paiement:null}).eq('id',id);
+  await loadVoyages();
+}
+
+// ── RÉCAP MENSUEL ──
+let currentMoisDate = new Date();
+
+function changerMois(delta) {
+  currentMoisDate.setMonth(currentMoisDate.getMonth() + delta);
+  loadRecap();
+}
+
+async function loadRecap() {
+  const y = currentMoisDate.getFullYear();
+  const m = String(currentMoisDate.getMonth()+1).padStart(2,'0');
+  const mois = `${y}-${m}`;
+
+  const moisNom = currentMoisDate.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  document.getElementById('monthLabel').textContent = moisNom.toUpperCase();
+
+  const { data } = await db.from('evenements').select('*').eq('mois', mois).order('date');
+
+  if (!data) return;
+
+  let totalJS = 0, totalVoyage = 0, totalRemorque = 0, totalService = 0;
+  let html = '';
+
+  data.forEach(ev => {
+    let titre = '', badge = '', tagClass = '', sous = '';
+
+    if (ev.type === 'chd') {
+      titre = `CHD — ${ev.navire || ''}`;
+      badge = `${ev.js} JS`;
+      tagClass = 'tag-chd';
+      totalJS += parseFloat(ev.js||0);
+      sous = ev.date;
+    } else if (ev.type === 'rc') {
+      titre = `Rappel congés — ${ev.motif || ''}`;
+      badge = `${ev.js} JS`;
+      tagClass = 'tag-rc';
+      totalJS += parseFloat(ev.js||0);
+      sous = ev.date;
+    } else if (ev.type === 'service') {
+      titre = `Prime service — ${ev.croche} croches, ${ev.jours_cap_srv} j. cap.`;
+      badge = `${parseFloat(ev.montant||0).toFixed(2)} €`;
+      tagClass = 'tag-cap';
+      totalService += parseFloat(ev.montant||0);
+      sous = ev.mois;
+    } else if (ev.type === 'remorque') {
+      titre = `Prime remorque (activité ${ev.motif||''})`;
+      badge = `${parseFloat(ev.montant||0).toFixed(2)} €`;
+      tagClass = 'tag-remorque';
+      totalRemorque += parseFloat(ev.montant||0);
+      sous = ev.date;
+    }
+
+    html += `
+      <div class="recap-item">
+        <div class="recap-item-left">
+          <div class="recap-item-title">
+            <span class="tag-type ${tagClass}">${ev.type.toUpperCase()}</span>
+            &nbsp;${titre}
+          </div>
+          <div class="recap-item-sub">${sous}</div>
+        </div>
+        <div class="recap-item-right">
+          <span class="badge badge-js">${badge}</span>
+          <span class="badge ${ev.regle ? 'badge-paid' : 'badge-unpaid'}">${ev.regle ? '✓ Réglé' : '⏳ En attente'}</span>
+          <button class="btn-sm ${ev.regle ? 'danger' : 'success'}" onclick="toggleEvenement('${ev.id}',${!ev.regle})">${ev.regle ? 'Annuler' : '✓ Réglé'}</button>
+          <button class="btn-sm danger" onclick="supprimerEvenement('${ev.id}')" style="margin-top:4px;">🗑️</button>
+        </div>
+      </div>
+    `;
+  });
+
+  document.getElementById('totalJS').textContent = totalJS + ' JS';
+  document.getElementById('totalVoyage').textContent = totalVoyage.toFixed(2) + ' €';
+  document.getElementById('totalRemorque').textContent = totalRemorque.toFixed(2) + ' €';
+  document.getElementById('totalService').textContent = totalService.toFixed(2) + ' €';
+  document.getElementById('recapList').innerHTML = html || '<div class="no-data">Aucun élément ce mois</div>';
+}
+
+async function toggleEvenement(id, val) {
+  await db.from('evenements').update({regle:val}).eq('id',id);
+  await loadRecap();
+  toast(val ? '✅ Marqué réglé' : '↩️ Annulé');
+}
+
+async function supprimerEvenement(id) {
+  if (!confirm('Supprimer cet élément ?')) return;
+  await db.from('evenements').delete().eq('id',id);
+  await loadRecap();
+  toast('🗑️ Supprimé');
+}
+
+// ── Navigation ──
+function goPage(pageId, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  btn.classList.add('active');
+  if (pageId === 'pageRecap') loadRecap();
+  if (pageId === 'pageVoyage') loadVoyages();
+  if (pageId === 'pageConfig') renderMarinsConfig();
+}
+
+// ── Toast ──
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── Start ──
+// init() appelé par checkSession() ou checkLogin()
+
+// Génération mail dynamique
+['chdNavire','chdHeureCmd','chdHeurePAB','chdDate','chdDateCmd'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', genMailCHD);
+});
+['rcDate','rcMotif'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', genMailRC);
+});
+document.querySelectorAll('#chdJsGroup .radio-btn').forEach(b => b.addEventListener('click', () => setTimeout(genMailCHD,50)));
+document.querySelectorAll('#rcJsGroup .radio-btn').forEach(b => b.addEventListener('click', () => setTimeout(genMailRC,50)));
+</script>
+</body>
+</html>
