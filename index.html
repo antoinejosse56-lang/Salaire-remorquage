@@ -673,22 +673,39 @@
     <button class="month-nav-btn" onclick="changerMois(1)">›</button>
   </div>
 
-  <div class="totaux-grid">
+  <div class="section-title" style="margin-top:0;">JS du mois</div>
+  <div class="totaux-grid" style="grid-template-columns:1fr 1fr 1fr;">
     <div class="total-box">
-      <div class="total-box-val" id="totalJS">0</div>
-      <div class="total-box-lbl">Jours supplémentaires</div>
+      <div class="total-box-val" id="totalJSSalaire">0</div>
+      <div class="total-box-lbl">💳 Sur salaire</div>
     </div>
     <div class="total-box">
+      <div class="total-box-val" id="totalJSRecup">0</div>
+      <div class="total-box-lbl">🔄 Récup</div>
+    </div>
+    <div class="total-box">
+      <div class="total-box-val" id="totalJSCet">0</div>
+      <div class="total-box-lbl">🏦 CET</div>
+    </div>
+  </div>
+
+  <div class="section-title">Primes du mois</div>
+  <div class="totaux-grid">
+    <div class="total-box">
       <div class="total-box-val" id="totalVoyage">0 €</div>
-      <div class="total-box-lbl">Voyages extérieurs</div>
+      <div class="total-box-lbl">🌊 Voyages ext.</div>
     </div>
     <div class="total-box">
       <div class="total-box-val" id="totalRemorque">0 €</div>
-      <div class="total-box-lbl">Prime remorque</div>
+      <div class="total-box-lbl">🚢 Remorque</div>
     </div>
     <div class="total-box">
       <div class="total-box-val" id="totalService">0 €</div>
-      <div class="total-box-lbl">Prime capitaine svc</div>
+      <div class="total-box-lbl">👨‍✈️ Cap. service</div>
+    </div>
+    <div class="total-box" style="grid-column:span 2;">
+      <div class="total-box-val" id="totalJSAll" style="font-size:18px;">0 JS</div>
+      <div class="total-box-lbl">Total JS (tous modes)</div>
     </div>
   </div>
 
@@ -1469,12 +1486,15 @@ async function sauvegarderCHD() {
   const heureCmd = document.getElementById('chdHeureCmd').value;
   const heurePAB = document.getElementById('chdHeurePAB').value;
   const js = parseFloat(getSelectedRadio('chdJsGroup'));
-  const marinsSelected = [...document.querySelectorAll('#chdMarins .marin-chip.selected')]
-    .map(c => ({
+  const antoineVersementValCHD = document.querySelector('#antoineVersementCHD .radio-btn.selected')?.dataset.val || 'salaire';
+  const marinsSelected = [
+    { _antoine: true, nom: 'JOSSE', prenom: 'Antoine', versement: antoineVersementValCHD },
+    ...[...document.querySelectorAll('#chdMarins .marin-chip.selected')].map(c => ({
       nom: c.dataset.nom,
       prenom: c.dataset.prenom,
       versement: c.querySelector('select')?.value || 'salaire'
-    }));
+    }))
+  ];
 
   if (!date || !navire) { toast('⚠️ Complète la date et le navire'); return; }
 
@@ -1505,12 +1525,15 @@ async function sauvegarderRC() {
   const date = document.getElementById('rcDate').value;
   const motif = document.getElementById('rcMotif').value;
   const js = parseFloat(getSelectedRadio('rcJsGroup'));
-  const marinsSelected = [...document.querySelectorAll('#rcMarins .marin-chip.selected')]
-    .map(c => ({
+  const antoineVersementValRC = document.querySelector('#antoineVersementRC .radio-btn.selected')?.dataset.val || 'salaire';
+  const marinsSelected = [
+    { _antoine: true, nom: 'JOSSE', prenom: 'Antoine', versement: antoineVersementValRC },
+    ...[...document.querySelectorAll('#rcMarins .marin-chip.selected')].map(c => ({
       nom: c.dataset.nom,
       prenom: c.dataset.prenom,
       versement: c.querySelector('select')?.value || 'salaire'
-    }));
+    }))
+  ];
 
   if (!date) { toast('⚠️ Complète la date'); return; }
 
@@ -1863,65 +1886,153 @@ async function loadRecap() {
   document.getElementById('monthLabel').textContent = moisNom.toUpperCase();
 
   const { data } = await db.from('evenements').select('*').eq('mois', mois).order('date');
-
   if (!data) return;
 
-  let totalJS = 0, totalVoyage = 0, totalRemorque = 0, totalService = 0;
+  let jsSalaire = 0, jsRecup = 0, jsCet = 0;
+  let totalVoyage = 0, totalRemorque = 0, totalService = 0;
   let html = '';
 
-  data.forEach(ev => {
-    let titre = '', badge = '', tagClass = '', sous = '';
+  // Helper : lire le versement Antoine depuis marins_json
+  // On stocke le versement d'Antoine dans marins_json comme premier élément ou dans motif
+  // Pour CHD/RC : marins_json est un tableau d'objets {nom,prenom,versement}
+  // Le versement d'Antoine est stocké séparément dans le champ eligible (booléen réutilisé)
+  // -> en fait on va lire depuis le champ jour_cmd qu'on a réutilisé comme motif pour dateCmd
+  // -> le versement Antoine est dans eligible qu'on va utiliser comme champ texte
+  // Mais eligible est BOOLEAN en base... On va donc lire depuis marins_json un objet spécial
+  // On a stocké dans motif (pour CHD) la dateCmd. Le versement Antoine n'est pas persisté.
+  // Solution propre : on va lire marins_json et chercher un objet {nom:'JOSSE',prenom:'Antoine'}
+  // ou à défaut utiliser 'salaire' par défaut.
 
-    if (ev.type === 'chd') {
-      titre = `CHD — ${ev.navire || ''}`;
-      badge = `${ev.js} JS`;
-      tagClass = 'tag-chd';
-      totalJS += parseFloat(ev.js||0);
+  const getAntoineVersement = (ev) => {
+    if (!ev.marins_json) return 'salaire';
+    try {
+      const marins = JSON.parse(ev.marins_json);
+      // Chercher Antoine dans la liste (il peut y être si ajouté)
+      const antoine = marins.find(m => m.nom === 'JOSSE' || m.prenom === 'Antoine');
+      if (antoine && antoine.versement) return antoine.versement;
+    } catch(e) {}
+    // Fallback : lire depuis le champ eligible stocké comme texte
+    if (ev.eligible !== null && ev.eligible !== undefined && typeof ev.eligible === 'string') return ev.eligible;
+    return 'salaire';
+  };
+
+  const labelVers = v => v === 'recup' ? '🔄 Récup' : v === 'cet' ? '🏦 CET' : '💳 Salaire';
+  const tagVers = v => v === 'recup' ? 'badge-unpaid' : v === 'cet' ? 'badge-js' : 'badge-paid';
+
+  data.forEach(ev => {
+    let titre = '', badge = '', tagClass = '', sous = '', versInfo = '';
+
+    if (ev.type === 'chd' || ev.type === 'rc') {
+      const js = parseFloat(ev.js||0);
+      // Lire le versement depuis marins_json — chercher 'JOSSE' ou utiliser eligible
+      let versement = 'salaire';
+      try {
+        const marins = JSON.parse(ev.marins_json || '[]');
+        // On stocke aussi le versement antoine comme propriété spéciale _antoine dans marins_json
+        const special = marins.find(m => m._antoine);
+        if (special) versement = special.versement || 'salaire';
+        else {
+          // Ancien format ou pas de JOSSE dans la liste : utiliser eligible si c'est une string
+          const el = ev.eligible;
+          if (el === 'recup' || el === 'cet') versement = el;
+        }
+      } catch(e) {}
+
+      if (ev.type === 'chd') {
+        titre = `CHD — ${ev.navire || ''}`;
+        tagClass = 'tag-chd';
+      } else {
+        titre = `Rappel congés — ${ev.motif || ''}`;
+        tagClass = 'tag-rc';
+      }
+      badge = `${js} JS`;
       sous = ev.date;
-    } else if (ev.type === 'rc') {
-      titre = `Rappel congés — ${ev.motif || ''}`;
-      badge = `${ev.js} JS`;
-      tagClass = 'tag-rc';
-      totalJS += parseFloat(ev.js||0);
-      sous = ev.date;
+      versInfo = labelVers(versement);
+
+      // Ventiler selon versement
+      if (versement === 'recup') jsRecup += js;
+      else if (versement === 'cet') jsCet += js;
+      else jsSalaire += js;
+
+      // Lire aussi les autres marins pour info
+      let autresMarins = '';
+      try {
+        const marins = JSON.parse(ev.marins_json || '[]').filter(m => !m._antoine);
+        if (marins.length > 0) {
+          autresMarins = marins.map(m => {
+            const v = m.versement || 'salaire';
+            const lv = v === 'recup' ? 'Récup' : v === 'cet' ? 'CET' : 'Salaire';
+            return `${m.prenom||''} ${m.nom||''} (${lv})`;
+          }).join(', ');
+        }
+      } catch(e) {}
+
+      html += `
+        <div class="recap-item">
+          <div class="recap-item-left">
+            <div class="recap-item-title">
+              <span class="tag-type ${tagClass}">${ev.type.toUpperCase()}</span>
+              &nbsp;${titre}
+            </div>
+            <div class="recap-item-sub">${sous} · Toi : ${versInfo}${autresMarins ? '<br>Équipage : '+autresMarins : ''}</div>
+          </div>
+          <div class="recap-item-right">
+            <span class="badge badge-js">${badge}</span>
+            <span class="badge ${tagVers(versement)}">${versInfo}</span>
+            <span class="badge ${ev.regle ? 'badge-paid' : 'badge-unpaid'}">${ev.regle ? '✓ Réglé' : '⏳ En attente'}</span>
+            <button class="btn-sm ${ev.regle ? 'danger' : 'success'}" onclick="toggleEvenement('${ev.id}',${!ev.regle})">${ev.regle ? 'Annuler' : '✓ Réglé'}</button>
+            <button class="btn-sm danger" onclick="supprimerEvenement('${ev.id}')" style="margin-top:4px;">🗑️</button>
+          </div>
+        </div>
+      `;
+
     } else if (ev.type === 'service') {
       titre = `Prime service — ${ev.croche} croches, ${ev.jours_cap_srv} j. cap.`;
       badge = `${parseFloat(ev.montant||0).toFixed(2)} €`;
       tagClass = 'tag-cap';
       totalService += parseFloat(ev.montant||0);
       sous = ev.mois;
+      html += recapItemHTML(ev, titre, badge, tagClass, sous);
+
     } else if (ev.type === 'remorque') {
       titre = `Prime remorque (activité ${ev.motif||''})`;
       badge = `${parseFloat(ev.montant||0).toFixed(2)} €`;
       tagClass = 'tag-remorque';
       totalRemorque += parseFloat(ev.montant||0);
       sous = ev.date;
+      html += recapItemHTML(ev, titre, badge, tagClass, sous);
     }
-
-    html += `
-      <div class="recap-item">
-        <div class="recap-item-left">
-          <div class="recap-item-title">
-            <span class="tag-type ${tagClass}">${ev.type.toUpperCase()}</span>
-            &nbsp;${titre}
-          </div>
-          <div class="recap-item-sub">${sous}</div>
-        </div>
-        <div class="recap-item-right">
-          <span class="badge badge-js">${badge}</span>
-          <span class="badge ${ev.regle ? 'badge-paid' : 'badge-unpaid'}">${ev.regle ? '✓ Réglé' : '⏳ En attente'}</span>
-          <button class="btn-sm ${ev.regle ? 'danger' : 'success'}" onclick="toggleEvenement('${ev.id}',${!ev.regle})">${ev.regle ? 'Annuler' : '✓ Réglé'}</button>
-          <button class="btn-sm danger" onclick="supprimerEvenement('${ev.id}')" style="margin-top:4px;">🗑️</button>
-        </div>
-      </div>
-    `;
   });
 
-  document.getElementById('totalJS').textContent = totalJS + ' JS';
+  const totalJS = jsSalaire + jsRecup + jsCet;
+  document.getElementById('totalJSSalaire').textContent = jsSalaire.toFixed(1) + ' JS';
+  document.getElementById('totalJSRecup').textContent = jsRecup.toFixed(1) + ' JS';
+  document.getElementById('totalJSCet').textContent = jsCet.toFixed(1) + ' JS';
+  document.getElementById('totalJSAll').textContent = totalJS.toFixed(1) + ' JS';
   document.getElementById('totalVoyage').textContent = totalVoyage.toFixed(2) + ' €';
   document.getElementById('totalRemorque').textContent = totalRemorque.toFixed(2) + ' €';
   document.getElementById('totalService').textContent = totalService.toFixed(2) + ' €';
   document.getElementById('recapList').innerHTML = html || '<div class="no-data">Aucun élément ce mois</div>';
+}
+
+function recapItemHTML(ev, titre, badge, tagClass, sous) {
+  return `
+    <div class="recap-item">
+      <div class="recap-item-left">
+        <div class="recap-item-title">
+          <span class="tag-type ${tagClass}">${ev.type.toUpperCase()}</span>
+          &nbsp;${titre}
+        </div>
+        <div class="recap-item-sub">${sous}</div>
+      </div>
+      <div class="recap-item-right">
+        <span class="badge badge-js">${badge}</span>
+        <span class="badge ${ev.regle ? 'badge-paid' : 'badge-unpaid'}">${ev.regle ? '✓ Réglé' : '⏳ En attente'}</span>
+        <button class="btn-sm ${ev.regle ? 'danger' : 'success'}" onclick="toggleEvenement('${ev.id}',${!ev.regle})">${ev.regle ? 'Annuler' : '✓ Réglé'}</button>
+        <button class="btn-sm danger" onclick="supprimerEvenement('${ev.id}')" style="margin-top:4px;">🗑️</button>
+      </div>
+    </div>
+  `;
 }
 
 async function toggleEvenement(id, val) {
