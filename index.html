@@ -1924,21 +1924,50 @@ async function loadVoyages() {
   const paid = data?.filter(v => v.regle) || [];
   const unpaid = data?.filter(v => !v.regle) || [];
 
-  const renderVoyage = (v) => `
-    <div class="recap-item">
-      <div class="recap-item-left">
-        <div class="recap-item-title">${v.destination || 'Voyage'}</div>
-        <div class="recap-item-sub">${v.date} ${v.date_paiement ? '· Payé le '+v.date_paiement : ''}</div>
+  const renderVoyage = (v) => {
+    // Recalculer depuis equipage_json
+    let totalParts = 0, antoineParts = 0, valeurPart = 0;
+    let lignesEquip = '';
+    try {
+      const equip = JSON.parse(v.equipage_json || '[]');
+      equip.forEach(e => totalParts += (e.parts || 0));
+      const moitie = parseFloat(v.resultat || 0) / 2;
+      valeurPart = totalParts > 0 ? moitie / totalParts : 0;
+
+      // Trouver Antoine
+      const antoine = equip.find(e => e.nom === 'JOSSE' || (e.prenom === 'Antoine' && e.cdi));
+      antoineParts = antoine ? (antoine.parts || 0) : 0;
+
+      // Lignes équipage : initiales + parts + montant
+      lignesEquip = equip
+        .filter(e => e.parts > 0)
+        .map(e => {
+          const initiales = ((e.prenom||'').charAt(0) + (e.nom||'').charAt(0)).toUpperCase();
+          const montant = (valeurPart * e.parts).toFixed(2);
+          return `<span style="font-size:10px;font-family:'DM Mono',monospace;background:rgba(255,255,255,0.06);border-radius:4px;padding:2px 5px;margin:1px;display:inline-block;">${initiales} ${e.parts}pt · ${montant}€</span>`;
+        }).join('');
+    } catch(e) {}
+
+    return `
+    <div class="recap-item" style="flex-direction:column;align-items:stretch;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div class="recap-item-left">
+          <div class="recap-item-title">${v.destination || 'Voyage'}</div>
+          <div class="recap-item-sub">${v.date}${v.date_paiement ? ' · Payé le '+v.date_paiement : ''}</div>
+        </div>
+        <div class="recap-item-right" style="align-items:flex-end;">
+          <span style="font-family:'Bebas Neue';font-size:20px;color:var(--gold2);">${parseFloat(v.part_antoine||0).toFixed(2)} €</span>
+          <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${antoineParts}pt · ${valeurPart.toFixed(2)}€/pt · ${totalParts}pt total</span>
+          ${v.regle
+            ? `<button class="btn-sm danger" onclick="toggleVoyageRegle('${v.id}',false)">Annuler ✓</button>`
+            : `<button class="btn-sm success" onclick="marquerVoyageRegle('${v.id}')">✓ Payé</button>`
+          }
+        </div>
       </div>
-      <div class="recap-item-right">
-        <span style="font-family:'Bebas Neue';font-size:18px;color:var(--gold2)">${parseFloat(v.part_antoine||0).toFixed(2)} €</span>
-        ${v.regle
-          ? `<button class="btn-sm danger" onclick="toggleVoyageRegle('${v.id}',false)">Annuler ✓</button>`
-          : `<button class="btn-sm success" onclick="marquerVoyageRegle('${v.id}')">✓ Payé</button>`
-        }
-      </div>
+      ${lignesEquip ? `<div style="margin-top:8px;line-height:1.8;">${lignesEquip}</div>` : ''}
     </div>
   `;
+  };
 
   document.getElementById('voyagesPaids').innerHTML = paid.length
     ? paid.map(renderVoyage).join('')
