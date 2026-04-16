@@ -6,6 +6,7 @@
 <title>Rem'Salaire — Lorient</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {
     --navy: #0a1628;
@@ -625,16 +626,22 @@
     <label>Mois concerné</label>
     <input type="month" id="srvMois">
 
-    <label>Nombre de croche sur le mois</label>
-    <input type="number" id="srvCroche" min="0" placeholder="0">
+    <label>Jours capitaine de service</label>
+    <input type="number" id="srvJoursCapSrv" min="0" placeholder="0" oninput="previewService()">
 
-    <label>Jours de capitaine de service</label>
-    <input type="number" id="srvJoursCapSrv" min="0" placeholder="0">
+    <div id="srvCapPreview" style="font-size:12px;color:var(--gold2);margin-top:4px;font-family:'DM Mono',monospace;"></div>
 
-    <label>Prime remorque — mois à payer (mois+1)</label>
-    <input type="number" id="srvPrimeRemorque" min="0" step="0.01" placeholder="Montant en €">
+    <hr>
 
-    <button class="btn btn-gold" onclick="sauvegarderService()">💾 Enregistrer</button>
+    <label>Croches R1 (nombre)</label>
+    <input type="number" id="srvR1" min="0" placeholder="0" oninput="previewService()">
+
+    <label>Croches R2 (nombre)</label>
+    <input type="number" id="srvR2" min="0" placeholder="0" oninput="previewService()">
+
+    <div id="srvCrochePreview" style="font-size:12px;color:var(--foam);margin-top:4px;font-family:'DM Mono',monospace;"></div>
+
+    <button class="btn btn-gold" onclick="sauvegarderService()" style="margin-top:14px;">💾 Enregistrer</button>
   </div>
 
   <!-- Remorque Form (saisie prime future) -->
@@ -756,12 +763,15 @@
   </div>
 
   <div class="card">
-    <div class="card-title">💰 Taux prime capitaine de service</div>
-    <label>Montant par jour de service (€)</label>
+    <div class="card-title">💰 Taux des primes</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:8px;">Ces taux sont utilisés pour calculer les montants au moment de la saisie. Modifier un taux n'affecte pas les saisies passées.</p>
+    <label>Prime capitaine de service — par jour (€)</label>
     <input type="number" id="cfgTauxCapSrv" min="0" step="0.01" placeholder="ex: 45.00">
-    <label>Montant par croche (€)</label>
-    <input type="number" id="cfgTauxCroche" min="0" step="0.01" placeholder="ex: 30.00">
-    <button class="btn btn-outline" onclick="sauvegarderConfig()">💾 Sauvegarder</button>
+    <label>Croche R1 — montant unitaire (€)</label>
+    <input type="number" id="cfgTauxR1" min="0" step="0.01" placeholder="ex: 30.00">
+    <label>Croche R2 — montant unitaire (€)</label>
+    <input type="number" id="cfgTauxR2" min="0" step="0.01" placeholder="ex: 20.00">
+    <button class="btn btn-outline" onclick="sauvegarderConfig()" style="margin-top:14px;">💾 Sauvegarder les taux</button>
   </div>
 
   <div class="card" style="border-color: rgba(240,165,0,0.3);">
@@ -852,6 +862,94 @@
 
 </div>
 
+
+<!-- ── PAGE STATS ── -->
+<div id="pageStats" class="page">
+
+  <!-- Capitaine de service -->
+  <div class="card">
+    <div class="card-title">👨‍✈️ Capitaine de service</div>
+    <div class="totaux-grid">
+      <div class="total-box">
+        <div class="total-box-val" id="statCapMois">—</div>
+        <div class="total-box-lbl">Jours ce mois</div>
+      </div>
+      <div class="total-box">
+        <div class="total-box-val" id="statCapAn">—</div>
+        <div class="total-box-lbl">Jours cette année</div>
+      </div>
+      <div class="total-box">
+        <div class="total-box-val" id="statCapMontantMois">—</div>
+        <div class="total-box-lbl">Prime ce mois</div>
+      </div>
+      <div class="total-box">
+        <div class="total-box-val" id="statCapMontantAn">—</div>
+        <div class="total-box-lbl">Prime cette année</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Croches -->
+  <div class="card">
+    <div class="card-title">🔗 Croches R1 / R2</div>
+    <div class="totaux-grid" style="grid-template-columns:1fr 1fr 1fr;">
+      <div class="total-box">
+        <div class="total-box-val" id="statR1Mois">—</div>
+        <div class="total-box-lbl">R1 ce mois</div>
+      </div>
+      <div class="total-box">
+        <div class="total-box-val" id="statR2Mois">—</div>
+        <div class="total-box-lbl">R2 ce mois</div>
+      </div>
+      <div class="total-box">
+        <div class="total-box-val" id="statCrocheMontantMois">—</div>
+        <div class="total-box-lbl">Montant mois</div>
+      </div>
+      <div class="total-box">
+        <div class="total-box-val" id="statR1An">—</div>
+        <div class="total-box-lbl">R1 cette année</div>
+      </div>
+      <div class="total-box">
+        <div class="total-box-val" id="statR2An">—</div>
+        <div class="total-box-lbl">R2 cette année</div>
+      </div>
+      <div class="total-box">
+        <div class="total-box-val" id="statCrocheMontantAn">—</div>
+        <div class="total-box-lbl">Montant année</div>
+      </div>
+    </div>
+    <canvas id="chartCroches" height="180" style="margin-top:12px;"></canvas>
+  </div>
+
+  <!-- Voyages -->
+  <div class="card">
+    <div class="card-title">🌊 Voyages extérieurs</div>
+    <div class="totaux-grid">
+      <div class="total-box">
+        <div class="total-box-val" id="statVoyMois">—</div>
+        <div class="total-box-lbl">Montant ce mois</div>
+      </div>
+      <div class="total-box">
+        <div class="total-box-val" id="statVoyAn">—</div>
+        <div class="total-box-lbl">Montant cette année</div>
+      </div>
+    </div>
+    <canvas id="chartVoyages" height="180" style="margin-top:12px;"></canvas>
+
+    <!-- Saisie historique -->
+    <div class="section-title" style="margin-top:16px;">📥 Historique années passées</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:10px;">Saisis les totaux des années précédentes pour compléter le graphique.</p>
+    <div id="historiqueVoyContainer"></div>
+    <button class="btn btn-outline" onclick="sauvegarderHistoriqueVoy()" style="margin-top:8px;">💾 Sauvegarder historique</button>
+
+    <div class="section-title" style="margin-top:16px;">🚢 Historique croches</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:10px;">Nombre total de croches (R1+R2) des années précédentes.</p>
+    <div id="historiqueCrocheContainer"></div>
+    <button class="btn btn-outline" onclick="sauvegarderHistoriqueCroche()" style="margin-top:8px;">💾 Sauvegarder historique</button>
+  </div>
+
+</div>
+
 <!-- ── NAV ── -->
 <nav class="nav">
   <button class="nav-btn active" onclick="goPage('pageSaisie',this)">
@@ -862,6 +960,9 @@
   </button>
   <button class="nav-btn" onclick="goPage('pageRecap',this)">
     <span class="nav-ico">📊</span>Récap
+  </button>
+  <button class="nav-btn" onclick="goPage('pageStats',this)">
+    <span class="nav-ico">📈</span>Stats
   </button>
   <button class="nav-btn" onclick="goPage('pageJS',this)">
     <span class="nav-ico">📅</span>JS
@@ -980,7 +1081,7 @@ CREATE TABLE IF NOT EXISTS voyages (
 let currentPage = 'pageSaisie';
 let currentMois = new Date().toISOString().slice(0,7); // YYYY-MM
 let marinsData = [];
-let config = { taux_cap_srv: 0, taux_croche: 0 };
+let config = { taux_cap_srv: 0, taux_r1: 0, taux_r2: 0 };
 let voyageCalcData = null;
 let cddExtras = { chd: [], rc: [] };
 
@@ -1101,21 +1202,25 @@ async function loadConfig() {
     if (data) {
       data.forEach(r => {
         if (r.key === 'taux_cap_srv') config.taux_cap_srv = parseFloat(r.value)||0;
-        if (r.key === 'taux_croche') config.taux_croche = parseFloat(r.value)||0;
+        if (r.key === 'taux_r1') config.taux_r1 = parseFloat(r.value)||0;
+        if (r.key === 'taux_r2') config.taux_r2 = parseFloat(r.value)||0;
       });
     }
     document.getElementById('cfgTauxCapSrv').value = config.taux_cap_srv || '';
-    document.getElementById('cfgTauxCroche').value = config.taux_croche || '';
+    document.getElementById('cfgTauxR1').value = config.taux_r1 || '';
+    document.getElementById('cfgTauxR2').value = config.taux_r2 || '';
   } catch(e) {}
 }
 
 async function sauvegarderConfig() {
   config.taux_cap_srv = parseFloat(document.getElementById('cfgTauxCapSrv').value)||0;
-  config.taux_croche = parseFloat(document.getElementById('cfgTauxCroche').value)||0;
+  config.taux_r1 = parseFloat(document.getElementById('cfgTauxR1').value)||0;
+  config.taux_r2 = parseFloat(document.getElementById('cfgTauxR2').value)||0;
   try {
     await db.from('config').upsert([
       {key:'taux_cap_srv', value: String(config.taux_cap_srv)},
-      {key:'taux_croche', value: String(config.taux_croche)},
+      {key:'taux_r1', value: String(config.taux_r1)},
+      {key:'taux_r2', value: String(config.taux_r2)},
     ]);
     toast('✅ Configuration sauvegardée');
   } catch(e) { toast('❌ Erreur sauvegarde'); }
@@ -1593,23 +1698,51 @@ async function sauvegarderRC() {
   await loadCompteurs();
 }
 
+function previewService() {
+  const jours = parseInt(document.getElementById('srvJoursCapSrv').value)||0;
+  const r1 = parseInt(document.getElementById('srvR1').value)||0;
+  const r2 = parseInt(document.getElementById('srvR2').value)||0;
+  const montantCap = jours * config.taux_cap_srv;
+  const montantCroche = (r1 * config.taux_r1) + (r2 * config.taux_r2);
+  document.getElementById('srvCapPreview').textContent =
+    jours > 0 ? `${jours} j × ${config.taux_cap_srv} € = ${montantCap.toFixed(2)} €` : '';
+  document.getElementById('srvCrochePreview').textContent =
+    (r1+r2) > 0 ? `R1: ${r1} × ${config.taux_r1}€ + R2: ${r2} × ${config.taux_r2}€ = ${montantCroche.toFixed(2)} €` : '';
+}
+
 async function sauvegarderService() {
   const mois = document.getElementById('srvMois').value;
-  const croche = parseInt(document.getElementById('srvCroche').value)||0;
   const joursCapSrv = parseInt(document.getElementById('srvJoursCapSrv').value)||0;
-  const primeRemorque = parseFloat(document.getElementById('srvPrimeRemorque').value)||0;
+  const r1 = parseInt(document.getElementById('srvR1').value)||0;
+  const r2 = parseInt(document.getElementById('srvR2').value)||0;
+  if (!mois) { toast('⚠️ Sélectionne un mois'); return; }
 
-  const montant = (croche * config.taux_croche) + (joursCapSrv * config.taux_cap_srv);
+  // Stocker le taux au moment de la saisie (immutable)
+  const tauxCapSnapshot = config.taux_cap_srv;
+  const tauxR1Snapshot  = config.taux_r1;
+  const tauxR2Snapshot  = config.taux_r2;
+  const montantCap    = joursCapSrv * tauxCapSnapshot;
+  const montantCroche = (r1 * tauxR1Snapshot) + (r2 * tauxR2Snapshot);
+  const montantTotal  = montantCap + montantCroche;
+
+  // Sauvegarder les détails dans marins_json (réutilisé comme champ JSON générique)
+  const details = { joursCapSrv, r1, r2, tauxCapSnapshot, tauxR1Snapshot, tauxR2Snapshot, montantCap, montantCroche };
 
   const { error } = await db.from('evenements').insert({
     type:'service', date: mois+'-01', mois,
-    croche, jours_cap_srv: joursCapSrv,
-    prime_remorque: primeRemorque,
-    montant, regle: false
+    croche: r1 + r2,
+    jours_cap_srv: joursCapSrv,
+    montant: montantTotal, regle: false,
+    marins_json: JSON.stringify(details)
   });
 
   if (error) { toast('❌ Erreur : ' + error.message); return; }
   toast('✅ Primes de service enregistrées');
+  document.getElementById('srvJoursCapSrv').value = '';
+  document.getElementById('srvR1').value = '';
+  document.getElementById('srvR2').value = '';
+  document.getElementById('srvCapPreview').textContent = '';
+  document.getElementById('srvCrochePreview').textContent = '';
   await loadRecap();
 }
 
@@ -1631,6 +1764,197 @@ async function sauvegarderRemorque() {
   await loadRecap();
 }
 
+
+
+// ── Stats ──
+let chartCroches = null;
+let chartVoyages = null;
+
+async function loadStats() {
+  const now = new Date();
+  const anneeEnCours = now.getFullYear();
+  const moisEnCours  = String(now.getMonth()+1).padStart(2,'0');
+  const moisActuel   = `${anneeEnCours}-${moisEnCours}`;
+
+  // Charger tous les evenements service + voyages
+  const { data: evts } = await db.from('evenements').select('*').in('type',['service']);
+  const { data: voys } = await db.from('voyages').select('*');
+  const { data: hist } = await db.from('config').select('*').like('key', 'hist_%');
+
+  const evtsAll = evts || [];
+  const voysAll = voys || [];
+  const histMap = {};
+  (hist||[]).forEach(h => { histMap[h.key] = h.value; });
+
+  // ── Capitaine de service ──
+  const capMois = evtsAll.filter(e => e.mois === moisActuel);
+  const capAn   = evtsAll.filter(e => e.mois && e.mois.startsWith(String(anneeEnCours)));
+
+  let capJoursMois = 0, capMontantMois = 0;
+  let capJoursAn = 0, capMontantAn = 0;
+
+  capMois.forEach(e => {
+    try { const d = JSON.parse(e.marins_json||'{}'); capJoursMois += d.joursCapSrv||0; capMontantMois += d.montantCap||0; } catch(x){}
+  });
+  capAn.forEach(e => {
+    try { const d = JSON.parse(e.marins_json||'{}'); capJoursAn += d.joursCapSrv||0; capMontantAn += d.montantCap||0; } catch(x){}
+  });
+
+  document.getElementById('statCapMois').textContent = capJoursMois + ' j';
+  document.getElementById('statCapAn').textContent   = capJoursAn + ' j';
+  document.getElementById('statCapMontantMois').textContent = capMontantMois.toFixed(0) + ' €';
+  document.getElementById('statCapMontantAn').textContent   = capMontantAn.toFixed(0) + ' €';
+
+  // ── Croches ──
+  let r1Mois=0, r2Mois=0, crocheMontantMois=0;
+  let r1An=0, r2An=0, crocheMontantAn=0;
+
+  capMois.forEach(e => {
+    try { const d = JSON.parse(e.marins_json||'{}'); r1Mois += d.r1||0; r2Mois += d.r2||0; crocheMontantMois += d.montantCroche||0; } catch(x){}
+  });
+  capAn.forEach(e => {
+    try { const d = JSON.parse(e.marins_json||'{}'); r1An += d.r1||0; r2An += d.r2||0; crocheMontantAn += d.montantCroche||0; } catch(x){}
+  });
+
+  document.getElementById('statR1Mois').textContent = r1Mois;
+  document.getElementById('statR2Mois').textContent = r2Mois;
+  document.getElementById('statCrocheMontantMois').textContent = crocheMontantMois.toFixed(0) + ' €';
+  document.getElementById('statR1An').textContent = r1An;
+  document.getElementById('statR2An').textContent = r2An;
+  document.getElementById('statCrocheMontantAn').textContent = crocheMontantAn.toFixed(0) + ' €';
+
+  // ── Voyages ──
+  const voyMois = voysAll.filter(v => v.date && v.date.slice(0,7) === moisActuel);
+  const voyAn   = voysAll.filter(v => v.date && v.date.slice(0,4) === String(anneeEnCours));
+  const voyMontantMois = voyMois.reduce((s,v) => s + parseFloat(v.part_antoine||0), 0);
+  const voyMontantAn   = voyAn.reduce((s,v)   => s + parseFloat(v.part_antoine||0), 0);
+  document.getElementById('statVoyMois').textContent = voyMontantMois.toFixed(0) + ' €';
+  document.getElementById('statVoyAn').textContent   = voyMontantAn.toFixed(0) + ' €';
+
+  // ── Graphiques sur 4 ans ──
+  const annees = [anneeEnCours-3, anneeEnCours-2, anneeEnCours-1, anneeEnCours];
+  const labels = annees.map(a => String(a));
+
+  // Croches par année (R1+R2)
+  const crocheParAn = annees.map(a => {
+    if (a === anneeEnCours) return r1An + r2An;
+    const hist_val = parseFloat(histMap[`hist_croche_${a}`] || '0');
+    return hist_val;
+  });
+
+  // Voyages par année
+  const voyParAn = annees.map(a => {
+    if (a === anneeEnCours) return voyMontantAn;
+    return parseFloat(histMap[`hist_voy_${a}`] || '0');
+  });
+
+  // Chart croches
+  const ctxC = document.getElementById('chartCroches').getContext('2d');
+  if (chartCroches) chartCroches.destroy();
+  chartCroches = new Chart(ctxC, {
+    type:'bar',
+    data: {
+      labels,
+      datasets: [{
+        label:'Croches totales (R1+R2)',
+        data: crocheParAn,
+        backgroundColor: labels.map(l => parseInt(l)===anneeEnCours ? 'rgba(90,180,229,0.8)' : 'rgba(90,180,229,0.3)'),
+        borderColor:'rgba(90,180,229,1)',
+        borderWidth:1,
+        borderRadius:6,
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{labels:{color:'#7a94b0',font:{family:'DM Sans'}}},
+        tooltip:{callbacks:{label: ctx => `${ctx.parsed.y} croches`}}},
+      scales:{
+        x:{ticks:{color:'#7a94b0'},grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{ticks:{color:'#7a94b0'},grid:{color:'rgba(255,255,255,0.05)'},beginAtZero:true}
+      }
+    }
+  });
+
+  // Chart voyages
+  const ctxV = document.getElementById('chartVoyages').getContext('2d');
+  if (chartVoyages) chartVoyages.destroy();
+  chartVoyages = new Chart(ctxV, {
+    type:'bar',
+    data: {
+      labels,
+      datasets:[{
+        label:'Ma part voyages (€)',
+        data: voyParAn,
+        backgroundColor: labels.map(l => parseInt(l)===anneeEnCours ? 'rgba(240,165,0,0.8)' : 'rgba(240,165,0,0.3)'),
+        borderColor:'rgba(240,165,0,1)',
+        borderWidth:1,
+        borderRadius:6,
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{labels:{color:'#7a94b0',font:{family:'DM Sans'}}},
+        tooltip:{callbacks:{label: ctx => `${ctx.parsed.y.toFixed(0)} €`}}},
+      scales:{
+        x:{ticks:{color:'#7a94b0'},grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{ticks:{color:'#7a94b0'},grid:{color:'rgba(255,255,255,0.05)'},beginAtZero:true}
+      }
+    }
+  });
+
+  // Remplir les champs historique
+  renderHistoriqueInputs(annees.slice(0,3), histMap);
+}
+
+function renderHistoriqueInputs(anneesPassees, histMap) {
+  // Voyages
+  const cv = document.getElementById('historiqueVoyContainer');
+  cv.innerHTML = anneesPassees.map(a => `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--muted);width:45px;">${a}</span>
+      <input type="number" id="histVoy_${a}" min="0" step="0.01" placeholder="0.00"
+        value="${histMap['hist_voy_'+a]||''}"
+        style="flex:1;" oninput="loadStats()">
+      <span style="font-size:12px;color:var(--muted);">€</span>
+    </div>
+  `).join('');
+
+  // Croches
+  const cc = document.getElementById('historiqueCrocheContainer');
+  cc.innerHTML = anneesPassees.map(a => `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <span style="font-family:'DM Mono',monospace;font-size:13px;color:var(--muted);width:45px;">${a}</span>
+      <input type="number" id="histCroche_${a}" min="0" placeholder="0"
+        value="${histMap['hist_croche_'+a]||''}"
+        style="flex:1;" oninput="loadStats()">
+      <span style="font-size:12px;color:var(--muted);">croches</span>
+    </div>
+  `).join('');
+}
+
+async function sauvegarderHistoriqueVoy() {
+  const anneeEnCours = new Date().getFullYear();
+  const annees = [anneeEnCours-3, anneeEnCours-2, anneeEnCours-1];
+  const upserts = annees.map(a => ({
+    key: `hist_voy_${a}`,
+    value: String(parseFloat(document.getElementById(`histVoy_${a}`)?.value)||0)
+  }));
+  await db.from('config').upsert(upserts);
+  toast('✅ Historique voyages sauvegardé');
+  await loadStats();
+}
+
+async function sauvegarderHistoriqueCroche() {
+  const anneeEnCours = new Date().getFullYear();
+  const annees = [anneeEnCours-3, anneeEnCours-2, anneeEnCours-1];
+  const upserts = annees.map(a => ({
+    key: `hist_croche_${a}`,
+    value: String(parseInt(document.getElementById(`histCroche_${a}`)?.value)||0)
+  }));
+  await db.from('config').upsert(upserts);
+  toast('✅ Historique croches sauvegardé');
+  await loadStats();
+}
 
 // ── Compteurs JS (Récup & CET) ──
 
@@ -2188,6 +2512,7 @@ function goPage(pageId, btn) {
   if (pageId === 'pageRecap') loadRecap();
   if (pageId === 'pageVoyage') loadVoyages();
   if (pageId === 'pageJS') loadCompteurs();
+  if (pageId === 'pageStats') loadStats();
   if (pageId === 'pageConfig') renderMarinsConfig();
 }
 
