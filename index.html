@@ -569,7 +569,10 @@
     <div id="mailPreviewCHD" style="display:none;">
       <div class="section-title">📧 Mail prêt à copier</div>
       <div class="mail-box" id="mailTextCHD"></div>
-      <button class="btn btn-outline" style="margin-top:10px;" onclick="copierMail('mailTextCHD')">📋 Copier le mail</button>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-outline" style="flex:1;margin-top:0;" onclick="copierMail('mailTextCHD')">📋 Copier</button>
+        <button class="btn btn-gold" style="flex:1;margin-top:0;" onclick="ouvrirMailto('mailTextCHD','CHD')">📧 Ouvrir Outlook</button>
+      </div>
     </div>
 
     <button class="btn btn-primary" onclick="sauvegarderCHD()">💾 Enregistrer</button>
@@ -613,7 +616,10 @@
     <div id="mailPreviewRC" style="display:none;">
       <div class="section-title">📧 Mail prêt à copier</div>
       <div class="mail-box" id="mailTextRC"></div>
-      <button class="btn btn-outline" style="margin-top:10px;" onclick="copierMail('mailTextRC')">📋 Copier le mail</button>
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-outline" style="flex:1;margin-top:0;" onclick="copierMail('mailTextRC')">📋 Copier</button>
+        <button class="btn btn-gold" style="flex:1;margin-top:0;" onclick="ouvrirMailto('mailTextRC','RC')">📧 Ouvrir Outlook</button>
+      </div>
     </div>
 
     <button class="btn btn-primary" onclick="sauvegarderRC()">💾 Enregistrer</button>
@@ -771,8 +777,17 @@
     <label>Croche R1 — montant unitaire (€)</label>
     <input type="number" id="cfgTauxR1" min="0" step="0.01" placeholder="ex: 30.00">
     <label>Croche R2 — montant unitaire (€)</label>
-    <input type="number" id="cfgTauxR2" min="0" step="0.01" placeholder="ex: 20.00">
+    <input type="number" id="cfgTauxR2" min="0" step="0.01" placeholder="ex: 7.83">
+    <label>Prime de gestion — par croche (€)</label>
+    <input type="number" id="cfgTauxGestion" min="0" step="0.01" placeholder="ex: 8.33">
     <button class="btn btn-outline" onclick="sauvegarderConfig()" style="margin-top:14px;">💾 Sauvegarder les taux</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📧 Email Guylaine (paye)</div>
+    <label>Adresse email</label>
+    <input type="email" id="cfgEmailGuylaine" placeholder="guylaine@exemple.fr">
+    <button class="btn btn-outline" onclick="sauvegarderEmailGuylaine()" style="margin-top:10px;">💾 Sauvegarder</button>
   </div>
 
   <div class="card" style="border-color: rgba(240,165,0,0.3);">
@@ -1056,6 +1071,9 @@ if (checkSession()) {
 // ── SQL à exécuter dans Supabase ──
 /*
 CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT);
+
+-- Si la table marins existe déjà, ajouter la colonne email :
+ALTER TABLE marins ADD COLUMN IF NOT EXISTS email TEXT DEFAULT '';
 CREATE TABLE IF NOT EXISTS marins (id SERIAL PRIMARY KEY, nom TEXT, prenom TEXT, poste TEXT, ordre INT);
 CREATE TABLE IF NOT EXISTS evenements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1082,24 +1100,24 @@ CREATE TABLE IF NOT EXISTS voyages (
 let currentPage = 'pageSaisie';
 let currentMois = new Date().toISOString().slice(0,7); // YYYY-MM
 let marinsData = [];
-let config = { taux_cap_srv: 0, taux_r1: 0, taux_r2: 0 };
+let config = { taux_cap_srv: 0, taux_r1: 0, taux_r2: 0, taux_gestion: 8.33 };
 let voyageCalcData = null;
 let cddExtras = { chd: [], rc: [] };
 
 const MARINS_DEFAULT = [
-  {nom:'JOSSE',prenom:'Antoine',poste:'Capitaine'},
-  {nom:'LEVEQUE',prenom:'Arnaud',poste:'Matelot'},
-  {nom:'TONNERRE',prenom:'Mickaël',poste:'Matelot'},
-  {nom:'MARTIN',prenom:'Jean',poste:'Second Capitaine'},
-  {nom:'BERNARD',prenom:'Pierre',poste:'Chef mécanicien'},
-  {nom:'DUPONT',prenom:'Luc',poste:'Matelot'},
-  {nom:'MOREAU',prenom:'Yves',poste:'Matelot'},
-  {nom:'THOMAS',prenom:'François',poste:'Capitaine'},
-  {nom:'RICHARD',prenom:'Alain',poste:'Second Capitaine'},
-  {nom:'PETIT',prenom:'Jacques',poste:'Chef mécanicien'},
-  {nom:'SIMON',prenom:'René',poste:'Matelot'},
-  {nom:'DAVID',prenom:'Marc',poste:'Matelot'},
-  {nom:'ROBERT',prenom:'Gilles',poste:'Matelot'},
+  {nom:'JOSSE',prenom:'Antoine',poste:'Capitaine',email:''},
+  {nom:'LEVEQUE',prenom:'Arnaud',poste:'Matelot',email:''},
+  {nom:'TONNERRE',prenom:'Mickaël',poste:'Matelot',email:''},
+  {nom:'MARTIN',prenom:'Jean',poste:'Second Capitaine',email:''},
+  {nom:'BERNARD',prenom:'Pierre',poste:'Chef mécanicien',email:''},
+  {nom:'DUPONT',prenom:'Luc',poste:'Matelot',email:''},
+  {nom:'MOREAU',prenom:'Yves',poste:'Matelot',email:''},
+  {nom:'THOMAS',prenom:'François',poste:'Capitaine',email:''},
+  {nom:'RICHARD',prenom:'Alain',poste:'Second Capitaine',email:''},
+  {nom:'PETIT',prenom:'Jacques',poste:'Chef mécanicien',email:''},
+  {nom:'SIMON',prenom:'René',poste:'Matelot',email:''},
+  {nom:'DAVID',prenom:'Marc',poste:'Matelot',email:''},
+  {nom:'ROBERT',prenom:'Gilles',poste:'Matelot',email:''},
 ];
 
 // ── Init ──
@@ -1123,6 +1141,7 @@ async function init() {
   await loadRecap();
   await loadVoyages();
   await loadCompteurs();
+  await loadEmailGuylaine();
 }
 
 async function initTables() {
@@ -1205,11 +1224,13 @@ async function loadConfig() {
         if (r.key === 'taux_cap_srv') config.taux_cap_srv = parseFloat(r.value)||0;
         if (r.key === 'taux_r1') config.taux_r1 = parseFloat(r.value)||0;
         if (r.key === 'taux_r2') config.taux_r2 = parseFloat(r.value)||0;
+        if (r.key === 'taux_gestion') config.taux_gestion = parseFloat(r.value)||8.33;
       });
     }
     document.getElementById('cfgTauxCapSrv').value = config.taux_cap_srv || '';
     document.getElementById('cfgTauxR1').value = config.taux_r1 || '';
     document.getElementById('cfgTauxR2').value = config.taux_r2 || '';
+    document.getElementById('cfgTauxGestion').value = config.taux_gestion || 8.33;
   } catch(e) {}
 }
 
@@ -1218,10 +1239,12 @@ async function sauvegarderConfig() {
   config.taux_r1 = parseFloat(document.getElementById('cfgTauxR1').value)||0;
   config.taux_r2 = parseFloat(document.getElementById('cfgTauxR2').value)||0;
   try {
+    config.taux_gestion = parseFloat(document.getElementById('cfgTauxGestion').value)||8.33;
     await db.from('config').upsert([
       {key:'taux_cap_srv', value: String(config.taux_cap_srv)},
       {key:'taux_r1', value: String(config.taux_r1)},
       {key:'taux_r2', value: String(config.taux_r2)},
+      {key:'taux_gestion', value: String(config.taux_gestion)},
     ]);
     toast('✅ Configuration sauvegardée');
   } catch(e) { toast('❌ Erreur sauvegarde'); }
@@ -1246,10 +1269,11 @@ async function sauvegarderMarins() {
   const inputs = document.querySelectorAll('#marinsConfigList .marin-config-row');
   const newMarins = [];
   inputs.forEach((row, i) => {
-    const nom = row.querySelector('.cfg-nom').value.trim();
+    const nom    = row.querySelector('.cfg-nom').value.trim();
     const prenom = row.querySelector('.cfg-prenom').value.trim();
-    const poste = row.querySelector('.cfg-poste').value;
-    if (nom) newMarins.push({nom, prenom, poste, ordre:i});
+    const poste  = row.querySelector('.cfg-poste').value;
+    const email  = row.querySelector('.cfg-email')?.value.trim() || '';
+    if (nom) newMarins.push({nom, prenom, poste, email, ordre:i});
   });
   try {
     await db.from('marins').delete().neq('id', 0);
@@ -1268,13 +1292,16 @@ function renderMarinsConfig() {
   marinsData.forEach((m, i) => {
     const div = document.createElement('div');
     div.className = 'marin-config-row';
-    div.style.cssText = 'display:flex;gap:6px;margin-bottom:8px;align-items:center;';
+    div.style.cssText = 'margin-bottom:10px;padding:10px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;';
     div.innerHTML = `
-      <input class="cfg-prenom" type="text" value="${m.prenom||''}" placeholder="Prénom" style="flex:1.2;">
-      <input class="cfg-nom" type="text" value="${m.nom||''}" placeholder="NOM" style="flex:1.2;">
-      <select class="cfg-poste" style="flex:1.5;">
-        ${postes.map(p=>`<option ${p===m.poste?'selected':''}>${p}</option>`).join('')}
-      </select>
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+        <input class="cfg-prenom" type="text" value="${m.prenom||''}" placeholder="Prénom" style="flex:1.2;">
+        <input class="cfg-nom" type="text" value="${m.nom||''}" placeholder="NOM" style="flex:1.2;">
+        <select class="cfg-poste" style="flex:1.5;">
+          ${postes.map(p=>`<option ${p===m.poste?'selected':''}>${p}</option>`).join('')}
+        </select>
+      </div>
+      <input class="cfg-email" type="email" value="${m.email||''}" placeholder="email@marin.fr" style="width:100%;font-size:12px;">
     `;
     container.appendChild(div);
   });
@@ -1284,7 +1311,7 @@ function renderMarinsConfig() {
   addBtn.style.marginTop = '6px';
   addBtn.textContent = '+ Ajouter marin';
   addBtn.onclick = () => {
-    marinsData.push({nom:'',prenom:'',poste:'Matelot',ordre:marinsData.length});
+    marinsData.push({nom:'',prenom:'',poste:'Matelot',email:'',ordre:marinsData.length});
     renderMarinsConfig();
   };
   container.appendChild(addBtn);
@@ -1523,6 +1550,43 @@ function antoineVersementRC() {
   return `Antoine JOSSE sur ${label}`;
 }
 
+
+// ── Email mailto ──
+let emailGuylaine = '';
+
+async function loadEmailGuylaine() {
+  try {
+    const { data } = await db.from('config').select('value').eq('key','email_guylaine').single();
+    if (data) {
+      emailGuylaine = data.value || '';
+      const el = document.getElementById('cfgEmailGuylaine');
+      if (el) el.value = emailGuylaine;
+    }
+  } catch(e) {}
+}
+
+async function sauvegarderEmailGuylaine() {
+  const val = document.getElementById('cfgEmailGuylaine').value.trim();
+  await db.from('config').upsert([{key:'email_guylaine', value: val}]);
+  emailGuylaine = val;
+  toast('✅ Email sauvegardé');
+}
+
+function ouvrirMailto(mailId, type) {
+  const corps = document.getElementById(mailId).textContent;
+  if (!corps) { toast('⚠️ Génère le mail d'abord'); return; }
+
+  const sujet = type === 'CHD'
+    ? 'Commande hors délai — compensation JS'
+    : 'Rappel sur congés / Armement 3ème remorqueur — JS';
+
+  const dest = emailGuylaine || '';
+  if (!dest) { toast('⚠️ Configure l'email de Guylaine dans Config'); }
+
+  const mailto = `mailto:${dest}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corps)}`;
+  window.location.href = mailto;
+}
+
 // ── Mail CHD ──
 function genMailCHD() {
   const navire = document.getElementById('chdNavire').value || '[NAVIRE]';
@@ -1712,7 +1776,9 @@ function previewService() {
 }
 
 function previewRemorque() {
-  const TAUX_R1 = 6.94, TAUX_R2 = 7.83, TAUX_GESTION = 8.33;
+  const TAUX_R1 = config.taux_r1 || 6.94;
+  const TAUX_R2 = config.taux_r2 || 7.83;
+  const TAUX_GESTION = config.taux_gestion || 8.33;
   const r1 = parseInt(document.getElementById('remR1').value)||0;
   const r2 = parseInt(document.getElementById('remR2').value)||0;
   const el = document.getElementById('remPreview');
@@ -1757,7 +1823,9 @@ async function sauvegarderService() {
 }
 
 async function sauvegarderRemorque() {
-  const TAUX_R1 = 6.94, TAUX_R2 = 7.83, TAUX_GESTION = 8.33;
+  const TAUX_R1 = config.taux_r1 || 6.94;
+  const TAUX_R2 = config.taux_r2 || 7.83;
+  const TAUX_GESTION = config.taux_gestion || 8.33;
   const moisActivite = document.getElementById('remMoisActivite').value;
   const r1 = parseInt(document.getElementById('remR1').value)||0;
   const r2 = parseInt(document.getElementById('remR2').value)||0;
