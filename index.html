@@ -1574,14 +1574,14 @@ async function sauvegarderEmailGuylaine() {
 
 function ouvrirMailto(mailId, type) {
   const corps = document.getElementById(mailId).textContent;
-  if (!corps) { toast('⚠️ Génère le mail d'abord'); return; }
+  if (!corps) { toast("⚠️ Génère le mail d'abord"); return; }
 
   const sujet = type === 'CHD'
     ? 'Commande hors délai — compensation JS'
     : 'Rappel sur congés / Armement 3ème remorqueur — JS';
 
   const dest = emailGuylaine || '';
-  if (!dest) { toast('⚠️ Configure l'email de Guylaine dans Config'); }
+  if (!dest) { toast("⚠️ Configure l'email de Guylaine dans Config"); }
 
   const mailto = `mailto:${dest}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(corps)}`;
   window.location.href = mailto;
