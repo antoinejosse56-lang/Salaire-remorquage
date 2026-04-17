@@ -621,41 +621,42 @@
 
   <!-- Service Form -->
   <div id="formService" class="card" style="display:none;">
-    <div class="card-title">👨‍✈️ Primes de service</div>
+    <div class="card-title">👨‍✈️ Prime capitaine de service</div>
 
     <label>Mois concerné</label>
     <input type="month" id="srvMois">
 
-    <label>Jours capitaine de service</label>
+    <label>Nombre de jours capitaine de service</label>
     <input type="number" id="srvJoursCapSrv" min="0" placeholder="0" oninput="previewService()">
 
-    <div id="srvCapPreview" style="font-size:12px;color:var(--gold2);margin-top:4px;font-family:'DM Mono',monospace;"></div>
-
-    <hr>
-
-    <label>Croches R1 (nombre)</label>
-    <input type="number" id="srvR1" min="0" placeholder="0" oninput="previewService()">
-
-    <label>Croches R2 (nombre)</label>
-    <input type="number" id="srvR2" min="0" placeholder="0" oninput="previewService()">
-
-    <div id="srvCrochePreview" style="font-size:12px;color:var(--foam);margin-top:4px;font-family:'DM Mono',monospace;"></div>
+    <div id="srvCapPreview" style="font-size:12px;color:var(--gold2);margin-top:6px;padding:8px 10px;background:rgba(240,165,0,0.08);border-radius:8px;font-family:'DM Mono',monospace;display:none;"></div>
 
     <button class="btn btn-gold" onclick="sauvegarderService()" style="margin-top:14px;">💾 Enregistrer</button>
   </div>
 
-  <!-- Remorque Form (saisie prime future) -->
+  <!-- Remorque Form -->
   <div id="formRemorque" class="card" style="display:none;">
-    <div class="card-title">🚢 Prime de remorque (saisie mensuelle)</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">La prime de remorque est versée à mois+1. Saisis le montant estimé ici pour le suivi.</p>
+    <div class="card-title">🚢 Prime de remorque</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">La prime est versée à mois+1. Saisis le nombre de croches du mois — le montant est calculé automatiquement.</p>
 
-    <label>Mois d'activité (mois qui génère la prime)</label>
+    <label>Mois d'activité</label>
     <input type="month" id="remMoisActivite">
 
-    <label>Montant estimé de la prime (€)</label>
-    <input type="number" id="remMontant" min="0" step="0.01" placeholder="0.00">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
+      <div>
+        <label style="margin-top:0;">Nombre de R1</label>
+        <input type="number" id="remR1" min="0" placeholder="0" oninput="previewRemorque()">
+      </div>
+      <div>
+        <label style="margin-top:0;">Nombre de R2</label>
+        <input type="number" id="remR2" min="0" placeholder="0" oninput="previewRemorque()">
+      </div>
+    </div>
 
-    <button class="btn btn-primary" onclick="sauvegarderRemorque()">💾 Enregistrer</button>
+    <div id="remPreview" style="margin-top:12px;display:none;background:rgba(14,31,61,0.8);border:1px solid var(--border);border-radius:10px;padding:12px;font-family:'DM Mono',monospace;font-size:12px;line-height:2;">
+    </div>
+
+    <button class="btn btn-primary" onclick="sauvegarderRemorque()" style="margin-top:14px;">💾 Enregistrer</button>
   </div>
 </div>
 
@@ -1700,67 +1701,93 @@ async function sauvegarderRC() {
 
 function previewService() {
   const jours = parseInt(document.getElementById('srvJoursCapSrv').value)||0;
-  const r1 = parseInt(document.getElementById('srvR1').value)||0;
-  const r2 = parseInt(document.getElementById('srvR2').value)||0;
   const montantCap = jours * config.taux_cap_srv;
-  const montantCroche = (r1 * config.taux_r1) + (r2 * config.taux_r2);
-  document.getElementById('srvCapPreview').textContent =
-    jours > 0 ? `${jours} j × ${config.taux_cap_srv} € = ${montantCap.toFixed(2)} €` : '';
-  document.getElementById('srvCrochePreview').textContent =
-    (r1+r2) > 0 ? `R1: ${r1} × ${config.taux_r1}€ + R2: ${r2} × ${config.taux_r2}€ = ${montantCroche.toFixed(2)} €` : '';
+  const el = document.getElementById('srvCapPreview');
+  if (jours > 0) {
+    el.style.display = 'block';
+    el.textContent = `${jours} j × ${config.taux_cap_srv} € = ${montantCap.toFixed(2)} €`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function previewRemorque() {
+  const TAUX_R1 = 6.94, TAUX_R2 = 7.83, TAUX_GESTION = 8.33;
+  const r1 = parseInt(document.getElementById('remR1').value)||0;
+  const r2 = parseInt(document.getElementById('remR2').value)||0;
+  const el = document.getElementById('remPreview');
+  if (r1 + r2 === 0) { el.style.display='none'; return; }
+
+  const montR1      = r1 * TAUX_R1;
+  const montR2      = r2 * TAUX_R2;
+  const montGestion = (r1 + r2) * TAUX_GESTION;
+  const total       = montR1 + montR2 + montGestion;
+
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">R1 : ${r1} × ${TAUX_R1} €</span><span style="color:var(--foam);">${montR1.toFixed(2)} €</span></div>
+    <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">R2 : ${r2} × ${TAUX_R2} €</span><span style="color:var(--foam);">${montR2.toFixed(2)} €</span></div>
+    <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);">Gestion : ${r1+r2} × ${TAUX_GESTION} €</span><span style="color:var(--foam);">${montGestion.toFixed(2)} €</span></div>
+    <div style="display:flex;justify-content:space-between;border-top:1px solid var(--border);margin-top:6px;padding-top:6px;font-weight:700;"><span style="color:var(--white);">TOTAL</span><span style="color:var(--gold2);font-size:15px;">${total.toFixed(2)} €</span></div>
+  `;
 }
 
 async function sauvegarderService() {
   const mois = document.getElementById('srvMois').value;
   const joursCapSrv = parseInt(document.getElementById('srvJoursCapSrv').value)||0;
-  const r1 = parseInt(document.getElementById('srvR1').value)||0;
-  const r2 = parseInt(document.getElementById('srvR2').value)||0;
   if (!mois) { toast('⚠️ Sélectionne un mois'); return; }
+  if (joursCapSrv === 0) { toast('⚠️ Saisis au moins 1 jour'); return; }
 
-  // Stocker le taux au moment de la saisie (immutable)
-  const tauxCapSnapshot = config.taux_cap_srv;
-  const tauxR1Snapshot  = config.taux_r1;
-  const tauxR2Snapshot  = config.taux_r2;
-  const montantCap    = joursCapSrv * tauxCapSnapshot;
-  const montantCroche = (r1 * tauxR1Snapshot) + (r2 * tauxR2Snapshot);
-  const montantTotal  = montantCap + montantCroche;
-
-  // Sauvegarder les détails dans marins_json (réutilisé comme champ JSON générique)
-  const details = { joursCapSrv, r1, r2, tauxCapSnapshot, tauxR1Snapshot, tauxR2Snapshot, montantCap, montantCroche };
+  const tauxCap = config.taux_cap_srv;
+  const montantCap = joursCapSrv * tauxCap;
+  const details = { joursCapSrv, tauxCap, montantCap };
 
   const { error } = await db.from('evenements').insert({
     type:'service', date: mois+'-01', mois,
-    croche: r1 + r2,
     jours_cap_srv: joursCapSrv,
-    montant: montantTotal, regle: false,
+    montant: montantCap, regle: false,
     marins_json: JSON.stringify(details)
   });
 
   if (error) { toast('❌ Erreur : ' + error.message); return; }
-  toast('✅ Primes de service enregistrées');
+  toast('✅ Prime capitaine de service enregistrée');
   document.getElementById('srvJoursCapSrv').value = '';
-  document.getElementById('srvR1').value = '';
-  document.getElementById('srvR2').value = '';
-  document.getElementById('srvCapPreview').textContent = '';
-  document.getElementById('srvCrochePreview').textContent = '';
+  document.getElementById('srvCapPreview').style.display = 'none';
   await loadRecap();
 }
 
 async function sauvegarderRemorque() {
+  const TAUX_R1 = 6.94, TAUX_R2 = 7.83, TAUX_GESTION = 8.33;
   const moisActivite = document.getElementById('remMoisActivite').value;
-  const montant = parseFloat(document.getElementById('remMontant').value)||0;
+  const r1 = parseInt(document.getElementById('remR1').value)||0;
+  const r2 = parseInt(document.getElementById('remR2').value)||0;
+  if (!moisActivite) { toast('⚠️ Sélectionne un mois'); return; }
+  if (r1 + r2 === 0) { toast('⚠️ Saisis au moins une croche R1 ou R2'); return; }
+
+  const montR1      = r1 * TAUX_R1;
+  const montR2      = r2 * TAUX_R2;
+  const montGestion = (r1 + r2) * TAUX_GESTION;
+  const montant     = montR1 + montR2 + montGestion;
+
   // Paiement mois+1
   const [y,m] = moisActivite.split('-').map(Number);
   const moisPaie = new Date(y, m, 1).toISOString().slice(0,7);
 
+  const details = { r1, r2, montR1, montR2, montGestion, TAUX_R1, TAUX_R2, TAUX_GESTION };
+
   const { error } = await db.from('evenements').insert({
     type:'remorque', date: moisActivite+'-01', mois: moisPaie,
+    croche: r1 + r2,
     motif: `Activité ${moisActivite}`,
-    montant, regle: false
+    montant, regle: false,
+    marins_json: JSON.stringify(details)
   });
 
   if (error) { toast('❌ Erreur : ' + error.message); return; }
-  toast('✅ Prime remorque enregistrée (payable en ' + moisPaie + ')');
+  toast('✅ Prime remorque enregistrée — payable en ' + moisPaie);
+  document.getElementById('remR1').value = '';
+  document.getElementById('remR2').value = '';
+  document.getElementById('remPreview').style.display = 'none';
   await loadRecap();
 }
 
@@ -1778,6 +1805,7 @@ async function loadStats() {
 
   // Charger tous les evenements service + voyages
   const { data: evts } = await db.from('evenements').select('*').in('type',['service']);
+  // Note: remorque chargé séparément ci-dessous
   const { data: voys } = await db.from('voyages').select('*');
   const { data: hist } = await db.from('config').select('*').like('key', 'hist_%');
 
@@ -1809,11 +1837,17 @@ async function loadStats() {
   let r1Mois=0, r2Mois=0, crocheMontantMois=0;
   let r1An=0, r2An=0, crocheMontantAn=0;
 
-  capMois.forEach(e => {
-    try { const d = JSON.parse(e.marins_json||'{}'); r1Mois += d.r1||0; r2Mois += d.r2||0; crocheMontantMois += d.montantCroche||0; } catch(x){}
+  // Croches depuis les primes remorque (pas service)
+  const { data: remEvts } = await db.from('evenements').select('*').eq('type','remorque');
+  const remAll = remEvts || [];
+  const remMoisEvts = remAll.filter(e => e.date && e.date.slice(0,7) === moisActuel);
+  const remAnEvts   = remAll.filter(e => e.date && e.date.slice(0,4) === String(anneeEnCours));
+
+  remMoisEvts.forEach(e => {
+    try { const d = JSON.parse(e.marins_json||'{}'); r1Mois += d.r1||0; r2Mois += d.r2||0; crocheMontantMois += parseFloat(e.montant||0); } catch(x){}
   });
-  capAn.forEach(e => {
-    try { const d = JSON.parse(e.marins_json||'{}'); r1An += d.r1||0; r2An += d.r2||0; crocheMontantAn += d.montantCroche||0; } catch(x){}
+  remAnEvts.forEach(e => {
+    try { const d = JSON.parse(e.marins_json||'{}'); r1An += d.r1||0; r2An += d.r2||0; crocheMontantAn += parseFloat(e.montant||0); } catch(x){}
   });
 
   document.getElementById('statR1Mois').textContent = r1Mois;
@@ -2442,7 +2476,7 @@ async function loadRecap() {
       `;
 
     } else if (ev.type === 'service') {
-      titre = `Prime service — ${ev.croche} croches, ${ev.jours_cap_srv} j. cap.`;
+      titre = `Cap. service — ${ev.jours_cap_srv} j.`;
       badge = `${parseFloat(ev.montant||0).toFixed(2)} €`;
       tagClass = 'tag-cap';
       totalService += parseFloat(ev.montant||0);
@@ -2450,11 +2484,19 @@ async function loadRecap() {
       html += recapItemHTML(ev, titre, badge, tagClass, sous);
 
     } else if (ev.type === 'remorque') {
-      titre = `Prime remorque (activité ${ev.motif||''})`;
-      badge = `${parseFloat(ev.montant||0).toFixed(2)} €`;
+      const montRem = parseFloat(ev.montant||0);
+      let detailRem = '';
+      try {
+        const d = JSON.parse(ev.marins_json||'{}');
+        if (d.r1 !== undefined) {
+          detailRem = `R1:${d.r1} (${(d.montR1||0).toFixed(2)}€) · R2:${d.r2} (${(d.montR2||0).toFixed(2)}€) · Gestion:${(d.montGestion||0).toFixed(2)}€`;
+        }
+      } catch(x){}
+      titre = `Prime remorque — ${ev.motif||''}`;
+      badge = `${montRem.toFixed(2)} €`;
       tagClass = 'tag-remorque';
-      totalRemorque += parseFloat(ev.montant||0);
-      sous = ev.date;
+      totalRemorque += montRem;
+      sous = `${ev.date}${detailRem ? ' · '+detailRem : ''}`;
       html += recapItemHTML(ev, titre, badge, tagClass, sous);
     }
   });
