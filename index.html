@@ -2239,31 +2239,25 @@ async function loadStats() {
   // ── Voyages ──
   // Calculer la part du capitaine connecté pour chaque voyage
   function calcMaPart(v) {
+    // Mon voyage (ou ancien sans user_id) → part_antoine directement
+    if (v.user_id === currentUser?.id || v.user_id === null || v.user_id === undefined) {
+      return parseFloat(v.part_antoine || 0);
+    }
+    // Voyage d'un collègue → recalculer depuis équipage
     try {
       const equip = JSON.parse(v.equipage_json || '[]');
       let totalP = 0;
       equip.forEach(e => totalP += (e.parts || 0));
       const moitie = parseFloat(v.resultat || 0) / 2;
       const valPart = totalP > 0 ? moitie / totalP : 0;
-
-      // Chercher le capitaine connecté dans l'équipage (plusieurs critères)
       const me = equip.find(e =>
         currentUser && (
           e.nom?.toUpperCase() === currentUser.nom?.toUpperCase() ||
-          (e.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase() && e.cdi)
+          e.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase()
         )
       );
-
-      if (me && me.parts > 0) return valPart * me.parts;
-
-      // Fallback : si c'est moi qui ai créé le voyage, utiliser part_antoine stocké
-      if (v.user_id === currentUser?.id) return parseFloat(v.part_antoine || 0);
-
-      // Fallback : si équipage vide ou non trouvé, retourner 0
-      return 0;
-    } catch(x) {
-      return v.user_id === currentUser?.id ? parseFloat(v.part_antoine || 0) : 0;
-    }
+      return (me && me.parts > 0) ? valPart * me.parts : 0;
+    } catch(x) { return 0; }
   }
 
   const voyMois = voysAll.filter(v => v.date && v.date.slice(0,7) === moisActuel);
@@ -2793,8 +2787,8 @@ async function loadVoyages() {
       );
       if (meInEquip && meInEquip.parts > 0) {
         antoineParts = meInEquip.parts;
-      } else if (!meInEquip && v.user_id === currentUser?.id) {
-        // Voyage sans equipage_json détaillé — utiliser part_antoine stocké
+      } else if (!meInEquip && (v.user_id === currentUser?.id || v.user_id === null)) {
+        // Voyage sans equipage_json détaillé ou avant multi-user
         antoineParts = -1; // signal pour utiliser part_antoine
       }
 
@@ -2904,25 +2898,26 @@ async function loadRecap() {
     voysMonth.forEach(v => {
       // Calculer la part du capitaine connecté
       let maPart = 0;
-      try {
-        const equip = JSON.parse(v.equipage_json || '[]');
-        let totalP = 0;
-        equip.forEach(e => totalP += (e.parts || 0));
-        const moitie = parseFloat(v.resultat || 0) / 2;
-        const valPart = totalP > 0 ? moitie / totalP : 0;
-        const meInEquip = equip.find(e =>
-          currentUser && (
-            e.nom?.toUpperCase() === currentUser.nom?.toUpperCase() ||
-            (e.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase() && e.cdi)
-          )
-        );
-        if (meInEquip && meInEquip.parts > 0) {
-          maPart = valPart * meInEquip.parts;
-        } else if (v.user_id === currentUser?.id) {
-          maPart = parseFloat(v.part_antoine || 0);
-        }
-      } catch(x) {
-        if (v.user_id === currentUser?.id) maPart = parseFloat(v.part_antoine || 0);
+
+      // 1. Si c'est mon voyage (ou avant multi-user) → utiliser part_antoine stocké directement
+      if (v.user_id === currentUser?.id || v.user_id === null || v.user_id === undefined) {
+        maPart = parseFloat(v.part_antoine || 0);
+      } else {
+        // 2. Voyage d'un collègue → recalculer ma part depuis l'équipage
+        try {
+          const equip = JSON.parse(v.equipage_json || '[]');
+          let totalP = 0;
+          equip.forEach(e => totalP += (e.parts || 0));
+          const moitie = parseFloat(v.resultat || 0) / 2;
+          const valPart = totalP > 0 ? moitie / totalP : 0;
+          const me = equip.find(e =>
+            currentUser && (
+              e.nom?.toUpperCase() === currentUser.nom?.toUpperCase() ||
+              e.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase()
+            )
+          );
+          if (me && me.parts > 0) maPart = valPart * me.parts;
+        } catch(x) {}
       }
       totalVoyage += maPart;
 
