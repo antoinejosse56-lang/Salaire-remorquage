@@ -2888,11 +2888,20 @@ async function loadRecap() {
   let totalVoyage = 0, totalRemorque = 0, totalService = 0;
 
   // Charger les voyages du mois (communs à tous)
-  const { data: voysMonth } = await db.from('voyages')
+  const { data: voysMonth, error: voyErr } = await db.from('voyages')
     .select('*')
     .gte('date', mois + '-01')
     .lte('date', mois + '-31')
     .order('date');
+
+  console.log('=== DEBUG VOYAGES RECAP ===');
+  console.log('Mois cherché:', mois);
+  console.log('currentUser.id:', currentUser?.id);
+  console.log('voyErr:', voyErr);
+  console.log('voysMonth count:', voysMonth?.length);
+  if (voysMonth) voysMonth.forEach(v => {
+    console.log('Voyage:', v.destination, '| date:', v.date, '| user_id:', v.user_id, '| part_antoine:', v.part_antoine, '| resultat:', v.resultat);
+  });
 
   if (voysMonth && voysMonth.length > 0) {
     voysMonth.forEach(v => {
@@ -2902,6 +2911,7 @@ async function loadRecap() {
       // 1. Si c'est mon voyage (ou avant multi-user) → utiliser part_antoine stocké directement
       if (v.user_id === currentUser?.id || v.user_id === null || v.user_id === undefined) {
         maPart = parseFloat(v.part_antoine || 0);
+        console.log('Mon voyage, maPart =', maPart);
       } else {
         // 2. Voyage d'un collègue → recalculer ma part depuis l'équipage
         try {
