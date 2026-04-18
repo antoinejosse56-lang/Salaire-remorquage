@@ -817,10 +817,21 @@
     <button class="btn btn-outline" onclick="sauvegarderEmailGuylaine()" style="margin-top:10px;">💾 Sauvegarder</button>
   </div>
 
-  <div id="adminUsersCard" style="display:none;" class="card" >
+  <div id="adminUsersCard" style="display:none;" class="card">
     <div class="card-title">👨‍✈️ Capitaines <span style="font-size:11px;background:rgba(240,165,0,0.2);color:var(--gold2);padding:2px 8px;border-radius:4px;margin-left:8px;">ADMIN</span></div>
     <div id="usersList"></div>
-    <button class="btn btn-outline" onclick="loadUsersList()" style="margin-top:10px;">🔄 Rafraîchir</button>
+
+    <div class="section-title" style="margin-top:16px;">➕ Ajouter un capitaine</div>
+    <div style="display:flex;gap:6px;margin-bottom:6px;">
+      <input type="text" id="newCapPrenom" placeholder="Prénom" style="flex:1;">
+      <input type="text" id="newCapNom" placeholder="NOM" style="flex:1;">
+    </div>
+    <input type="email" id="newCapEmail" placeholder="email@lorient.port.bzh" style="margin-bottom:6px;">
+    <div style="display:flex;gap:6px;align-items:center;position:relative;">
+      <input type="password" id="newCapPwd" placeholder="Mot de passe initial" style="flex:1;">
+      <span onclick="togglePwd('newCapPwd')" style="position:absolute;right:12px;cursor:pointer;font-size:16px;">👁️</span>
+    </div>
+    <button class="btn btn-gold" onclick="ajouterCapitaine()" style="margin-top:10px;">➕ Créer le compte</button>
   </div>
 
   <div class="card" style="border-color: rgba(240,165,0,0.3);">
@@ -997,6 +1008,20 @@
     <button class="btn btn-outline" onclick="sauvegarderHistoriqueCroche()" style="margin-top:8px;">💾 Sauvegarder historique</button>
   </div>
 
+</div>
+
+
+<!-- ── Modal date paiement ── -->
+<div id="modalDatePaie" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--navy2);border:1px solid var(--border);border-radius:var(--radius);padding:24px;width:100%;max-width:320px;">
+    <div style="font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:2px;color:var(--foam);margin-bottom:16px;">Date de paiement</div>
+    <input type="date" id="inputDatePaie" style="width:100%;margin-bottom:6px;">
+    <div id="labelDatePaie" style="font-size:12px;color:var(--gold2);font-family:'DM Mono',monospace;margin-bottom:16px;min-height:18px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-outline" style="flex:1;margin-top:0;padding:10px;" onclick="fermerModalDatePaie()">Annuler</button>
+      <button class="btn btn-primary" style="flex:1;margin-top:0;padding:10px;" onclick="confirmerDatePaie()">✓ Confirmer</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── NAV ── -->
@@ -1528,6 +1553,37 @@ async function resetUserPwd(userId, prenom) {
   const hash = await hashPassword('lorient');
   await db.from('users').update({password_hash: hash}).eq('id', userId);
   toast('✅ Mot de passe de ' + prenom + ' réinitialisé à "lorient"');
+}
+
+async function ajouterCapitaine() {
+  const prenom = document.getElementById('newCapPrenom').value.trim();
+  const nom    = document.getElementById('newCapNom').value.trim().toUpperCase();
+  const email  = document.getElementById('newCapEmail').value.trim().toLowerCase();
+  const pwd    = document.getElementById('newCapPwd').value;
+
+  if (!prenom || !nom)  { toast('⚠️ Remplis prénom et nom'); return; }
+  if (!email)           { toast("⚠️ Remplis l'email"); return; }
+  if (!pwd || pwd.length < 4) { toast('⚠️ Mot de passe trop court (min 4 car.)'); return; }
+
+  // Vérifier si l'email existe déjà
+  const { data: existing } = await db.from('users').select('id').ilike('email', email).limit(1);
+  if (existing && existing.length > 0) { toast('❌ Cet email existe déjà'); return; }
+
+  const hash = await hashPassword(pwd);
+  const { error } = await db.from('users').insert({
+    prenom, nom, email, password_hash: hash, is_admin: false
+  });
+
+  if (error) { toast('❌ Erreur : ' + error.message); return; }
+
+  // Vider les champs
+  document.getElementById('newCapPrenom').value = '';
+  document.getElementById('newCapNom').value = '';
+  document.getElementById('newCapEmail').value = '';
+  document.getElementById('newCapPwd').value = '';
+
+  toast('✅ Compte créé pour ' + prenom + ' ' + nom);
+  await loadUsersList();
 }
 
 function renderMarinsChips(containerId, type) {
@@ -2181,10 +2237,39 @@ async function loadStats() {
   document.getElementById('statCrocheMontantAn').textContent = crocheMontantAn.toFixed(0) + ' €';
 
   // ── Voyages ──
+  // Calculer la part du capitaine connecté pour chaque voyage
+  function calcMaPart(v) {
+    try {
+      const equip = JSON.parse(v.equipage_json || '[]');
+      let totalP = 0;
+      equip.forEach(e => totalP += (e.parts || 0));
+      const moitie = parseFloat(v.resultat || 0) / 2;
+      const valPart = totalP > 0 ? moitie / totalP : 0;
+
+      // Chercher le capitaine connecté dans l'équipage (plusieurs critères)
+      const me = equip.find(e =>
+        currentUser && (
+          e.nom?.toUpperCase() === currentUser.nom?.toUpperCase() ||
+          (e.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase() && e.cdi)
+        )
+      );
+
+      if (me && me.parts > 0) return valPart * me.parts;
+
+      // Fallback : si c'est moi qui ai créé le voyage, utiliser part_antoine stocké
+      if (v.user_id === currentUser?.id) return parseFloat(v.part_antoine || 0);
+
+      // Fallback : si équipage vide ou non trouvé, retourner 0
+      return 0;
+    } catch(x) {
+      return v.user_id === currentUser?.id ? parseFloat(v.part_antoine || 0) : 0;
+    }
+  }
+
   const voyMois = voysAll.filter(v => v.date && v.date.slice(0,7) === moisActuel);
   const voyAn   = voysAll.filter(v => v.date && v.date.slice(0,4) === String(anneeEnCours));
-  const voyMontantMois = voyMois.reduce((s,v) => s + parseFloat(v.part_antoine||0), 0);
-  const voyMontantAn   = voyAn.reduce((s,v)   => s + parseFloat(v.part_antoine||0), 0);
+  const voyMontantMois = voyMois.reduce((s,v) => s + calcMaPart(v), 0);
+  const voyMontantAn   = voyAn.reduce((s,v)   => s + calcMaPart(v), 0);
   document.getElementById('statVoyMois').textContent = voyMontantMois.toFixed(0) + ' €';
   document.getElementById('statVoyAn').textContent   = voyMontantAn.toFixed(0) + ' €';
 
@@ -2311,6 +2396,48 @@ async function sauvegarderHistoriqueCroche() {
   await db.from('config').upsert(upserts);
   toast('✅ Historique croches sauvegardé');
   await loadStats();
+}
+
+
+
+function fmtDateFR(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T12:00:00');
+  return d.toLocaleDateString('fr-FR', {day:'numeric', month:'long', year:'numeric'});
+}
+
+// ── Modal date paiement ──
+let _modalPaieCallback = null;
+
+function ouvrirModalDatePaie(callback) {
+  _modalPaieCallback = callback;
+  const today = new Date().toISOString().slice(0,10);
+  const el = document.getElementById('inputDatePaie');
+  el.value = today;
+  majLabelDate(today);
+  el.onchange = () => majLabelDate(el.value);
+  const modal = document.getElementById('modalDatePaie');
+  modal.style.display = 'flex';
+}
+
+function majLabelDate(val) {
+  const lbl = document.getElementById('labelDatePaie');
+  if (!val) { lbl.textContent = ''; return; }
+  const d = new Date(val + 'T12:00:00');
+  lbl.textContent = d.toLocaleDateString('fr-FR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+}
+
+function fermerModalDatePaie() {
+  document.getElementById('modalDatePaie').style.display = 'none';
+  _modalPaieCallback = null;
+}
+
+function confirmerDatePaie() {
+  const val = document.getElementById('inputDatePaie').value;
+  if (!val) { toast('⚠️ Sélectionne une date'); return; }
+  document.getElementById('modalDatePaie').style.display = 'none';
+  if (_modalPaieCallback) _modalPaieCallback(val);
+  _modalPaieCallback = null;
 }
 
 // ── Compteurs JS (Récup & CET) ──
@@ -2659,11 +2786,17 @@ async function loadVoyages() {
 
       // Trouver le capitaine connecté
       const meInEquip = equip.find(e =>
-        e.cdi && currentUser &&
-        (e.nom?.toUpperCase() === currentUser.nom?.toUpperCase() ||
-         (e.nom === 'JOSSE' && currentUser.nom === 'JOSSE'))
+        currentUser && (
+          e.nom?.toUpperCase() === currentUser.nom?.toUpperCase() ||
+          (e.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase() && e.cdi)
+        )
       );
-      antoineParts = meInEquip ? (meInEquip.parts || 0) : 0;
+      if (meInEquip && meInEquip.parts > 0) {
+        antoineParts = meInEquip.parts;
+      } else if (!meInEquip && v.user_id === currentUser?.id) {
+        // Voyage sans equipage_json détaillé — utiliser part_antoine stocké
+        antoineParts = -1; // signal pour utiliser part_antoine
+      }
 
       // Lignes équipage : initiales + parts + montant
       lignesEquip = equip
@@ -2675,8 +2808,11 @@ async function loadVoyages() {
         }).join('');
     } catch(e) {}
 
-    // Montant recalculé pour le capitaine connecté (pas le montant stocké)
-    const maPartMontant = (valeurPart * antoineParts).toFixed(2);
+    // Montant recalculé pour le capitaine connecté
+    const maPartMontant = antoineParts === -1
+      ? parseFloat(v.part_antoine || 0).toFixed(2)
+      : (valeurPart * antoineParts).toFixed(2);
+    if (antoineParts === -1) antoineParts = 0; // reset pour affichage
     const creePar = v.user_id === currentUser?.id ? '' : '<span style="font-size:10px;color:var(--muted);"> · créé par autre</span>';
     // Bouton supprimer seulement pour le créateur ou l'admin
     const peutSupprimer = v.user_id === currentUser?.id || currentUser?.is_admin;
@@ -2686,7 +2822,7 @@ async function loadVoyages() {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div class="recap-item-left">
           <div class="recap-item-title">${v.destination || 'Voyage'}${creePar}</div>
-          <div class="recap-item-sub">${v.date}${v.date_paiement ? ' · Payé le '+v.date_paiement : ''}</div>
+          <div class="recap-item-sub">${v.date}${v.date_paiement ? ' · Payé le ' + fmtDateFR(v.date_paiement) : ''}</div>
         </div>
         <div class="recap-item-right" style="align-items:flex-end;">
           <span style="font-family:'Bebas Neue';font-size:20px;color:var(--gold2);">${maPartMontant} €</span>
@@ -2712,11 +2848,12 @@ async function loadVoyages() {
     : '<div class="no-data">Aucun voyage en attente</div>';
 }
 
-async function marquerVoyageRegle(id) {
-  const dp = prompt('Date de paiement (AAAA-MM-JJ) :') || new Date().toISOString().slice(0,10);
-  await db.from('voyages').update({regle:true, date_paiement:dp}).eq('id',id);
-  await loadVoyages();
-  toast('✅ Voyage marqué payé');
+function marquerVoyageRegle(id) {
+  ouvrirModalDatePaie(async (dp) => {
+    await db.from('voyages').update({regle:true, date_paiement:dp}).eq('id',id);
+    await loadVoyages();
+    toast('✅ Voyage marqué payé');
+  });
 }
 
 async function toggleVoyageRegle(id, val) {
@@ -2774,13 +2911,17 @@ async function loadRecap() {
         const moitie = parseFloat(v.resultat || 0) / 2;
         const valPart = totalP > 0 ? moitie / totalP : 0;
         const meInEquip = equip.find(e =>
-          e.cdi && currentUser &&
-          e.nom?.toUpperCase() === currentUser.nom?.toUpperCase()
+          currentUser && (
+            e.nom?.toUpperCase() === currentUser.nom?.toUpperCase() ||
+            (e.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase() && e.cdi)
+          )
         );
-        const mesParts = meInEquip ? (meInEquip.parts || 0) : 0;
-        maPart = valPart * mesParts;
+        if (meInEquip && meInEquip.parts > 0) {
+          maPart = valPart * meInEquip.parts;
+        } else if (v.user_id === currentUser?.id) {
+          maPart = parseFloat(v.part_antoine || 0);
+        }
       } catch(x) {
-        // Fallback si erreur JSON
         if (v.user_id === currentUser?.id) maPart = parseFloat(v.part_antoine || 0);
       }
       totalVoyage += maPart;
@@ -2956,10 +3097,20 @@ function recapItemHTML(ev, titre, badge, tagClass, sous) {
   `;
 }
 
-async function toggleEvenement(id, val) {
-  await db.from('evenements').update({regle:val}).eq('id',id);
-  await loadRecap();
-  toast(val ? '✅ Marqué réglé' : '↩️ Annulé');
+function toggleEvenement(id, val) {
+  if (val) {
+    ouvrirModalDatePaie(async (dp) => {
+      await db.from('evenements').update({regle:val, date_paiement:dp}).eq('id',id);
+      await loadRecap();
+      toast('✅ Marqué réglé');
+    });
+  } else {
+    (async () => {
+      await db.from('evenements').update({regle:false, date_paiement:null}).eq('id',id);
+      await loadRecap();
+      toast('↩️ Annulé');
+    })();
+  }
 }
 
 async function supprimerEvenement(id) {
