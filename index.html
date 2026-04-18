@@ -1068,7 +1068,7 @@ async function checkLogin() {
   const hash = await hashPassword(pwd);
   const { data, error } = await db.from('users')
     .select('*')
-    .eq('email', email)
+    .ilike('email', email)
     .eq('password_hash', hash)
     .single();
 
@@ -1138,27 +1138,56 @@ function updateHeaderUser() {
 
 // Init utilisateurs par défaut (premier lancement)
 async function initDefaultUsers() {
-  const { data } = await db.from('users').select('id').limit(1);
-  if (data && data.length > 0) return; // déjà initialisé
+  // Vérifier si Antoine existe déjà (check précis)
+  const { data, error } = await db.from('users')
+    .select('id')
+    .eq('email', 'antoine.josse@lorient.port.bzh')
+    .limit(1);
 
+  if (error) {
+    console.error('Erreur vérification users:', error.message);
+    // Afficher l'erreur sur l'écran login
+    const hint = document.querySelector('.login-hint');
+    if (hint) hint.innerHTML = '<span style="color:#e05555;">❌ Erreur DB: ' + error.message + '</span>';
+    return;
+  }
+
+  if (data && data.length > 0) {
+    console.log('Utilisateurs déjà initialisés');
+    return;
+  }
+
+  // Premier lancement — créer les 4 comptes
+  console.log('Création des utilisateurs...');
+  const hint = document.querySelector('.login-hint');
+  if (hint) hint.innerHTML = '⏳ Initialisation en cours...';
+
+  const defaultHash = await hashPassword('lorient');
   const users = [
-    { prenom:'Antoine', nom:'JOSSE',    email:'antoine.josse@lorient.port.bzh',    is_admin:true  },
-    { prenom:'François', nom:'SAUVAGE', email:'francois.sauvage@lorient.port.bzh', is_admin:false },
-    { prenom:'Antonin', nom:'KOTAS',    email:'antonin.kotas@lorient.port.bzh',    is_admin:false },
-    { prenom:'Laurent', nom:'FURIC',    email:'laurent.furic@lorient.port.bzh',    is_admin:false },
+    { prenom:'Antoine',  nom:'JOSSE',   email:'antoine.josse@lorient.port.bzh',   is_admin:true,  password_hash:defaultHash },
+    { prenom:'François', nom:'SAUVAGE', email:'francois.sauvage@lorient.port.bzh', is_admin:false, password_hash:defaultHash },
+    { prenom:'Antonin',  nom:'KOTAS',   email:'antonin.kotas@lorient.port.bzh',   is_admin:false, password_hash:defaultHash },
+    { prenom:'Laurent',  nom:'FURIC',   email:'laurent.furic@lorient.port.bzh',   is_admin:false, password_hash:defaultHash },
   ];
 
-  // Mot de passe par défaut "lorient" pour tous
-  const defaultHash = await hashPassword('lorient');
-  const toInsert = users.map(u => ({ ...u, password_hash: defaultHash }));
-  await db.from('users').insert(toInsert);
-  console.log('Utilisateurs initialisés avec mot de passe: lorient');
+  const { error: insertErr } = await db.from('users').insert(users);
+  if (insertErr) {
+    console.error('Erreur création users:', insertErr.message);
+    if (hint) hint.innerHTML = '<span style="color:#e05555;">❌ Erreur création comptes: ' + insertErr.message + '</span>';
+    return;
+  }
+
+  console.log('✅ 4 comptes créés, mot de passe: lorient');
+  if (hint) hint.innerHTML = '✅ Comptes créés ! Mot de passe par défaut : <b>lorient</b>';
 }
 
-// Vérifier session au chargement
-if (checkSession()) {
-  init();
-}
+// Démarrage : initialiser les users puis vérifier session
+(async () => {
+  await initDefaultUsers();
+  if (checkSession()) {
+    init();
+  }
+})();
 
 
 
@@ -1217,7 +1246,6 @@ const MARINS_DEFAULT = [
 // ── Init ──
 async function init() {
   await initTables();
-  await initDefaultUsers();
   await loadConfig();
   await loadMarins();
   renderMarinsConfig();
