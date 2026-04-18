@@ -497,25 +497,28 @@
 <div id="loginScreen">
   <div class="login-logo">⚓</div>
   <div class="login-title">Rem'Salaire</div>
-  <div class="login-sub">LORIENT · ACCÈS RESTREINT</div>
+  <div class="login-sub">LORIENT · PORT DE COMMERCE</div>
   <div class="login-box">
-    <label style="text-align:center;display:block;margin-bottom:12px;">Mot de passe</label>
+    <label style="text-align:center;display:block;margin-bottom:12px;">Connexion</label>
+    <input type="email" id="loginEmail" placeholder="prenom.nom@lorient.port.bzh"
+      style="margin-bottom:10px;text-align:center;font-size:13px;"
+      onkeydown="if(event.key==='Enter') document.getElementById('loginInput').focus()">
     <div class="login-input-wrap">
-      <input type="password" id="loginInput" placeholder="••••••••"
+      <input type="password" id="loginInput" placeholder="Mot de passe"
         onkeydown="if(event.key==='Enter') checkLogin()"
         oninput="document.getElementById('loginError').textContent=''">
       <span class="login-eye" onclick="toggleLoginEye()">👁️</span>
     </div>
     <div class="login-error" id="loginError"></div>
-    <button class="btn btn-primary" onclick="checkLogin()" style="margin-top:0;">Accéder</button>
-    <div class="login-hint">Premier accès ? Le mot de passe par défaut est <b>lorient</b><br>Change-le dans Paramètres après connexion.</div>
+    <button class="btn btn-primary" onclick="checkLogin()" style="margin-top:8px;">Se connecter</button>
+    <div class="login-hint">Mot de passe par défaut : <b>lorient</b><br>À changer dans ⚙️ Config après connexion.</div>
   </div>
 </div>
 
 <div class="header">
   <span class="header-icon">⚓</span>
   <span class="header-title">Rem'Salaire</span>
-  <span class="header-sub">Lorient</span>
+  <span class="header-sub" id="headerUser"></span>
   <div class="conn-dot" id="connDot"></div>
 </div>
 
@@ -558,7 +561,7 @@
 
     <div id="chdEligible" style="margin-top:12px; padding:10px 12px; border-radius:8px; font-size:12px; display:none;"></div>
 
-    <label style="margin-top:14px;">Mon versement (Antoine JOSSE)</label>
+    <label style="margin-top:14px;" id="labelVersementCHD">Mon versement</label>
     <div class="radio-group" id="antoineVersementCHD">
       <div class="radio-btn selected" data-val="salaire" onclick="selectVersementAntoine('chdMarins',this)">Salaire</div>
       <div class="radio-btn" data-val="recup" onclick="selectVersementAntoine('chdMarins',this)">Récup</div>
@@ -605,7 +608,7 @@
       <div class="radio-btn" data-val="3">3 JS (armement 3ème remorqueur)</div>
     </div>
 
-    <label style="margin-top:14px;">Mon versement (Antoine JOSSE)</label>
+    <label style="margin-top:14px;" id="labelVersementCHD">Mon versement</label>
     <div class="radio-group" id="antoineVersementRC">
       <div class="radio-btn selected" data-val="salaire" onclick="selectVersementAntoine('rcMarins',this)">Salaire</div>
       <div class="radio-btn" data-val="recup" onclick="selectVersementAntoine('rcMarins',this)">Récup</div>
@@ -770,11 +773,27 @@
 
 <!-- ── PAGE CONFIG ── -->
 <div id="pageConfig" class="page">
-  <div class="card">
-    <div class="card-title">👥 Équipage CDI</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Ces marins apparaissent dans les sélecteurs. Tu peux modifier les noms directement.</p>
+  <div class="card" id="cardMarinsCDI">
+    <div class="card-title">👥 Équipage CDI <span id="adminBadge" style="display:none;font-size:11px;background:rgba(240,165,0,0.2);color:var(--gold2);padding:2px 8px;border-radius:4px;margin-left:8px;">ADMIN</span></div>
     <div id="marinsConfigList"></div>
-    <button class="btn btn-outline" onclick="sauvegarderMarins()" style="margin-top:12px;">💾 Sauvegarder l'équipage</button>
+    <div id="marinsAdminBtns" style="display:none;margin-top:12px;">
+      <button class="btn btn-outline" onclick="sauvegarderMarins()">💾 Sauvegarder l'équipage CDI</button>
+    </div>
+    <div id="marinsReadOnly" style="display:none;">
+      <p style="font-size:12px;color:var(--muted);margin-top:8px;">🔒 Modification réservée à l'administrateur.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">👷 CDD récurrents</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;">CDD qui reviennent régulièrement — visibles dans les sélecteurs pour tous.</p>
+    <div id="cddRecurrentsList"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <input type="text" id="newCddPrenom" placeholder="Prénom" style="flex:1;">
+      <input type="text" id="newCddNom" placeholder="NOM" style="flex:1;">
+      <button class="btn-sm info" onclick="ajouterCddRecurrent()" style="padding:10px 14px;">+</button>
+    </div>
+    <button class="btn btn-outline" onclick="sauvegarderCddRecurrents()" style="margin-top:10px;">💾 Sauvegarder</button>
   </div>
 
   <div class="card">
@@ -796,6 +815,12 @@
     <label>Adresse email</label>
     <input type="email" id="cfgEmailGuylaine" placeholder="guylaine@exemple.fr">
     <button class="btn btn-outline" onclick="sauvegarderEmailGuylaine()" style="margin-top:10px;">💾 Sauvegarder</button>
+  </div>
+
+  <div id="adminUsersCard" style="display:none;" class="card" >
+    <div class="card-title">👨‍✈️ Capitaines <span style="font-size:11px;background:rgba(240,165,0,0.2);color:var(--gold2);padding:2px 8px;border-radius:4px;margin-left:8px;">ADMIN</span></div>
+    <div id="usersList"></div>
+    <button class="btn btn-outline" onclick="loadUsersList()" style="margin-top:10px;">🔄 Rafraîchir</button>
   </div>
 
   <div class="card" style="border-color: rgba(240,165,0,0.3);">
@@ -1005,30 +1030,66 @@ const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const { createClient } = supabase;
 const db = createClient(SUPA_URL, SUPA_KEY);
 
-// ── Auth ──
-const PWD_KEY = 'rem_pwd';
-const SESSION_KEY = 'rem_session';
-const DEFAULT_PWD = 'lorient';
-
-function getStoredPwd() {
-  return localStorage.getItem(PWD_KEY) || DEFAULT_PWD;
+// ── Auth multi-utilisateurs ──
+// Hash simple SHA-256 via SubtleCrypto
+async function hashPassword(pwd) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pwd));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
-function checkLogin() {
-  const input = document.getElementById('loginInput').value;
-  const stored = getStoredPwd();
-  if (input === stored) {
-    // Session valable 12h
-    localStorage.setItem(SESSION_KEY, Date.now() + 12*60*60*1000);
-    document.getElementById('loginScreen').classList.add('hidden');
-    init();
-  } else {
-    const box = document.getElementById('loginBox') || document.querySelector('.login-box');
+let currentUser = null; // { id, nom, prenom, email, is_admin, marin_id }
+const SESSION_KEY = 'rem_session_v2';
+
+function saveSession(user) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({
+    user,
+    expires: Date.now() + 12*60*60*1000
+  }));
+}
+
+function checkSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+    if (s && Date.now() < s.expires && s.user) {
+      currentUser = s.user;
+      document.getElementById('loginScreen').classList.add('hidden');
+      updateHeaderUser();
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
+async function checkLogin() {
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const pwd   = document.getElementById('loginInput').value;
+  if (!email || !pwd) { showLoginError('Remplis email et mot de passe'); return; }
+
+  const hash = await hashPassword(pwd);
+  const { data, error } = await db.from('users')
+    .select('*')
+    .eq('email', email)
+    .eq('password_hash', hash)
+    .single();
+
+  if (error || !data) {
+    const box = document.querySelector('.login-box');
     box.classList.add('shake');
     setTimeout(() => box.classList.remove('shake'), 400);
-    document.getElementById('loginError').textContent = 'Mot de passe incorrect';
+    showLoginError('Email ou mot de passe incorrect');
     document.getElementById('loginInput').value = '';
+    return;
   }
+
+  currentUser = data;
+  saveSession(data);
+  document.getElementById('loginScreen').classList.add('hidden');
+  updateHeaderUser();
+  init();
+}
+
+function showLoginError(msg) {
+  document.getElementById('loginError').textContent = msg;
 }
 
 function toggleLoginEye() {
@@ -1041,32 +1102,57 @@ function togglePwd(id) {
   inp.type = inp.type === 'password' ? 'text' : 'password';
 }
 
-function changerMotDePasse() {
-  const actuel = document.getElementById('pwdActuel').value;
+async function changerMotDePasse() {
+  const actuel  = document.getElementById('pwdActuel').value;
   const nouveau = document.getElementById('pwdNouveau').value;
   const confirm = document.getElementById('pwdConfirm').value;
-  if (actuel !== getStoredPwd()) { toast('❌ Mot de passe actuel incorrect'); return; }
-  if (!nouveau || nouveau.length < 4) { toast('⚠️ Mot de passe trop court (min 4 caractères)'); return; }
+  if (!nouveau || nouveau.length < 6) { toast('⚠️ Mot de passe trop court (min 6 caractères)'); return; }
   if (nouveau !== confirm) { toast('⚠️ Les mots de passe ne correspondent pas'); return; }
-  localStorage.setItem(PWD_KEY, nouveau);
+
+  const hashActuel = await hashPassword(actuel);
+  const { data } = await db.from('users').select('id').eq('id', currentUser.id).eq('password_hash', hashActuel).single();
+  if (!data) { toast('❌ Mot de passe actuel incorrect'); return; }
+
+  const hashNew = await hashPassword(nouveau);
+  await db.from('users').update({ password_hash: hashNew }).eq('id', currentUser.id);
+  currentUser.password_hash = hashNew;
+  saveSession(currentUser);
   document.getElementById('pwdActuel').value = '';
   document.getElementById('pwdNouveau').value = '';
   document.getElementById('pwdConfirm').value = '';
-  toast('✅ Mot de passe changé avec succès');
+  toast('✅ Mot de passe changé');
 }
 
 function seDeconnecter() {
   localStorage.removeItem(SESSION_KEY);
+  currentUser = null;
   location.reload();
 }
 
-function checkSession() {
-  const exp = parseInt(localStorage.getItem(SESSION_KEY) || '0');
-  if (Date.now() < exp) {
-    document.getElementById('loginScreen').classList.add('hidden');
-    return true;
+function updateHeaderUser() {
+  const el = document.getElementById('headerUser');
+  if (el && currentUser) {
+    el.textContent = currentUser.prenom + (currentUser.is_admin ? ' ⚙️' : '');
   }
-  return false;
+}
+
+// Init utilisateurs par défaut (premier lancement)
+async function initDefaultUsers() {
+  const { data } = await db.from('users').select('id').limit(1);
+  if (data && data.length > 0) return; // déjà initialisé
+
+  const users = [
+    { prenom:'Antoine', nom:'JOSSE',    email:'antoine.josse@lorient.port.bzh',    is_admin:true  },
+    { prenom:'François', nom:'SAUVAGE', email:'francois.sauvage@lorient.port.bzh', is_admin:false },
+    { prenom:'Antonin', nom:'KOTAS',    email:'antonin.kotas@lorient.port.bzh',    is_admin:false },
+    { prenom:'Laurent', nom:'FURIC',    email:'laurent.furic@lorient.port.bzh',    is_admin:false },
+  ];
+
+  // Mot de passe par défaut "lorient" pour tous
+  const defaultHash = await hashPassword('lorient');
+  const toInsert = users.map(u => ({ ...u, password_hash: defaultHash }));
+  await db.from('users').insert(toInsert);
+  console.log('Utilisateurs initialisés avec mot de passe: lorient');
 }
 
 // Vérifier session au chargement
@@ -1131,6 +1217,7 @@ const MARINS_DEFAULT = [
 // ── Init ──
 async function init() {
   await initTables();
+  await initDefaultUsers();
   await loadConfig();
   await loadMarins();
   renderMarinsConfig();
@@ -1295,42 +1382,139 @@ async function sauvegarderMarins() {
 
 function renderMarinsConfig() {
   const container = document.getElementById('marinsConfigList');
+  const isAdmin = currentUser?.is_admin;
   container.innerHTML = '';
+
+  // Afficher/cacher les boutons selon rôle
+  const adminBtns = document.getElementById('marinsAdminBtns');
+  const readOnly  = document.getElementById('marinsReadOnly');
+  const adminBadge = document.getElementById('adminBadge');
+  if (adminBtns) adminBtns.style.display  = isAdmin ? 'block' : 'none';
+  if (readOnly)  readOnly.style.display   = isAdmin ? 'none' : 'block';
+  if (adminBadge) adminBadge.style.display = isAdmin ? 'inline' : 'none';
+
+  // Panneau admin utilisateurs
+  const adminCard = document.getElementById('adminUsersCard');
+  if (adminCard) adminCard.style.display = isAdmin ? 'block' : 'none';
+
   const postes = ['Capitaine','Second Capitaine','Chef mécanicien','Matelot'];
   marinsData.forEach((m, i) => {
     const div = document.createElement('div');
     div.className = 'marin-config-row';
     div.style.cssText = 'margin-bottom:10px;padding:10px;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;';
-    div.innerHTML = `
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
-        <input class="cfg-prenom" type="text" value="${m.prenom||''}" placeholder="Prénom" style="flex:1.2;">
-        <input class="cfg-nom" type="text" value="${m.nom||''}" placeholder="NOM" style="flex:1.2;">
-        <select class="cfg-poste" style="flex:1.5;">
-          ${postes.map(p=>`<option ${p===m.poste?'selected':''}>${p}</option>`).join('')}
-        </select>
-      </div>
-      <input class="cfg-email" type="email" value="${m.email||''}" placeholder="email@marin.fr" style="width:100%;font-size:12px;">
-    `;
+    if (isAdmin) {
+      div.innerHTML = `
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
+          <input class="cfg-prenom" type="text" value="${m.prenom||''}" placeholder="Prénom" style="flex:1.2;">
+          <input class="cfg-nom" type="text" value="${m.nom||''}" placeholder="NOM" style="flex:1.2;">
+          <select class="cfg-poste" style="flex:1.5;">
+            ${postes.map(p=>`<option ${p===m.poste?'selected':''}>${p}</option>`).join('')}
+          </select>
+        </div>
+        <input class="cfg-email" type="email" value="${m.email||''}" placeholder="email@marin.fr" style="width:100%;font-size:12px;">
+      `;
+    } else {
+      div.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:13px;font-weight:600;">${m.prenom||''} ${m.nom||''}</span>
+          <span style="font-size:11px;color:var(--muted);">${m.poste||''}</span>
+        </div>
+      `;
+    }
     container.appendChild(div);
   });
-  // Bouton ajouter
-  const addBtn = document.createElement('button');
-  addBtn.className = 'btn-sm info';
-  addBtn.style.marginTop = '6px';
-  addBtn.textContent = '+ Ajouter marin';
-  addBtn.onclick = () => {
-    marinsData.push({nom:'',prenom:'',poste:'Matelot',email:'',ordre:marinsData.length});
-    renderMarinsConfig();
-  };
-  container.appendChild(addBtn);
+
+  if (isAdmin) {
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn-sm info';
+    addBtn.style.marginTop = '6px';
+    addBtn.textContent = '+ Ajouter marin CDI';
+    addBtn.onclick = () => {
+      marinsData.push({nom:'',prenom:'',poste:'Matelot',email:'',ordre:marinsData.length});
+      renderMarinsConfig();
+    };
+    container.appendChild(addBtn);
+  }
+
+  loadCddRecurrents();
+  if (isAdmin) loadUsersList();
+}
+
+let cddRecurrents = [];
+
+async function loadCddRecurrents() {
+  const { data } = await db.from('config').select('value').eq('key','cdd_recurrents').single().catch(()=>({data:null}));
+  if (data?.value) {
+    try { cddRecurrents = JSON.parse(data.value); } catch(e) { cddRecurrents = []; }
+  }
+  const c = document.getElementById('cddRecurrentsList');
+  if (!c) return;
+  c.innerHTML = cddRecurrents.map((m,i) => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+      <span style="flex:1;font-size:13px;">${m.prenom} ${m.nom}</span>
+      <button class="btn-sm danger" onclick="supprimerCddRecurrent(${i})">🗑️</button>
+    </div>
+  `).join('') || '<div class="no-data">Aucun CDD récurrent</div>';
+}
+
+function supprimerCddRecurrent(idx) {
+  cddRecurrents.splice(idx, 1);
+  loadCddRecurrents();
+}
+
+function ajouterCddRecurrent() {
+  const prenom = document.getElementById('newCddPrenom').value.trim();
+  const nom    = document.getElementById('newCddNom').value.trim().toUpperCase();
+  if (!prenom || !nom) { toast('⚠️ Remplis prénom et nom'); return; }
+  cddRecurrents.push({prenom, nom});
+  document.getElementById('newCddPrenom').value = '';
+  document.getElementById('newCddNom').value = '';
+  loadCddRecurrents();
+}
+
+async function sauvegarderCddRecurrents() {
+  await db.from('config').upsert([{key:'cdd_recurrents', value: JSON.stringify(cddRecurrents)}]);
+  toast('✅ CDD récurrents sauvegardés');
+  // Recharger les chips dans les formulaires
+  renderMarinsChips('chdMarins', 'chd');
+  renderMarinsChips('rcMarins', 'rc');
+}
+
+async function loadUsersList() {
+  const { data: users } = await db.from('users').select('id,prenom,nom,email,is_admin');
+  const c = document.getElementById('usersList');
+  if (!c || !users) return;
+  c.innerHTML = users.map(u => `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:8px;background:rgba(255,255,255,0.04);border-radius:8px;">
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;">${u.prenom} ${u.nom} ${u.is_admin ? '⚙️' : ''}</div>
+        <div style="font-size:11px;color:var(--muted);">${u.email}</div>
+      </div>
+      ${!u.is_admin ? `<button class="btn-sm danger" onclick="resetUserPwd('${u.id}','${u.prenom}')">🔑 Reset</button>` : ''}
+    </div>
+  `).join('');
+}
+
+async function resetUserPwd(userId, prenom) {
+  if (!confirm('Réinitialiser le mot de passe de ' + prenom + ' à "lorient" ?')) return;
+  const hash = await hashPassword('lorient');
+  await db.from('users').update({password_hash: hash}).eq('id', userId);
+  toast('✅ Mot de passe de ' + prenom + ' réinitialisé à "lorient"');
 }
 
 function renderMarinsChips(containerId, type) {
   const container = document.getElementById(containerId);
   if (!container) return;
   container.innerHTML = '';
-  const toShow = marinsData.filter(m => !(m.nom === 'JOSSE' && m.prenom === 'Antoine'));
-  [...toShow, ...(cddExtras[type]||[])].forEach(m => {
+  // Exclure le capitaine connecté (il est ajouté séparément en haut)
+  const toShow = marinsData.filter(m => !(
+    currentUser &&
+    m.nom?.toUpperCase() === currentUser.nom?.toUpperCase() &&
+    m.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase()
+  ));
+  const cddRec = (typeof cddRecurrents !== 'undefined' ? cddRecurrents : [])
+    .filter(c => !toShow.find(m => m.nom === c.nom && m.prenom === c.prenom));
+  [...toShow, ...cddRec, ...(cddExtras[type]||[])].forEach(m => {
     const wrap = document.createElement('div');
     wrap.style.cssText = 'width:100%; margin-bottom:8px;';
 
@@ -1410,6 +1594,15 @@ function getSelectedRadio(groupId) {
 }
 
 function setDefaultDates() {
+  // Mettre à jour les labels avec le nom du capitaine connecté
+  if (currentUser) {
+    const nomCap = currentUser.prenom + ' ' + currentUser.nom;
+    ['labelVersementCHD','labelVersementRC'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = `Mon versement (${nomCap})`;
+    });
+  }
+
   const today = new Date().toISOString().slice(0,10);
   ['chdDate','chdDateCmd','rcDate','vDate'].forEach(id => {
     const el = document.getElementById(id);
@@ -1548,14 +1741,16 @@ function antoineVersementCHD() {
   const sel = document.querySelector('#antoineVersementCHD .radio-btn.selected');
   const val = sel ? sel.dataset.val : 'salaire';
   const label = val === 'recup' ? 'compte récup' : val === 'cet' ? 'CET' : 'salaire';
-  return `Antoine JOSSE sur ${label}`;
+  const nom = currentUser ? `${currentUser.prenom} ${currentUser.nom}` : 'Antoine JOSSE';
+  return `${nom} sur ${label}`;
 }
 
 function antoineVersementRC() {
   const sel = document.querySelector('#antoineVersementRC .radio-btn.selected');
   const val = sel ? sel.dataset.val : 'salaire';
   const label = val === 'recup' ? 'compte récup' : val === 'cet' ? 'CET' : 'salaire';
-  return `Antoine JOSSE sur ${label}`;
+  const nom = currentUser ? `${currentUser.prenom} ${currentUser.nom}` : 'Antoine JOSSE';
+  return `${nom} sur ${label}`;
 }
 
 
@@ -1636,7 +1831,7 @@ function genMailCHD() {
   const marinsSelected = [...document.querySelectorAll('#chdMarins .marin-chip.selected')];
   const labelVersement = v => v === 'recup' ? 'compte récup' : v === 'cet' ? 'CET' : 'salaire';
 
-  // Antoine toujours en premier avec son propre sélecteur (salaire par défaut)
+  // Capitaine connecté en premier
   const lignesMarins = marinsSelected.map(c => {
     const prenom = c.dataset.prenom;
     const nom = c.dataset.nom;
@@ -1644,6 +1839,7 @@ function genMailCHD() {
     return `${prenom} ${nom} sur ${labelVersement(versement)}`;
   }).join('\n');
 
+  const monNom = currentUser ? `${currentUser.prenom} ${currentUser.nom}` : 'Antoine JOSSE';
   const mail = `Bonjour Guylaine,
 
 Suite commande hors délai pour l'entrée du ${navire}, commande passée à ${heureCmd} le ${jourCmdLabel} pour manœuvre à ${heurePAB} le ${jourPABLabel}.
@@ -1741,17 +1937,14 @@ async function sauvegarderCHD() {
     navire, heure_cmd: heureCmd, heure_pab: heurePAB,
     motif: dateCmd,
     js, regle: false,
+    user_id: currentUser?.id,
     marins_json: JSON.stringify(marinsSelected)
   });
 
   if (error) { toast('❌ Erreur : ' + error.message); return; }
 
-  // Alimenter Récup/CET si des marins ont choisi ce mode
-  const antoineSelCHD = document.querySelector('#antoineVersementCHD .radio-btn.selected');
-  const antoineValCHD = antoineSelCHD ? antoineSelCHD.dataset.val : 'salaire';
-  if (antoineValCHD === 'recup' || antoineValCHD === 'cet') {
-    await ajouterMouvementJS(antoineValCHD, js, `CHD ${navire}`, 'chd', null, date);
-  }
+  // Alimenter JS pour tous les marins sélectionnés (CDI capitaines)
+  await distribuerJS(marinsSelected, js, `CHD ${navire}`, 'chd', date);
 
   toast('✅ Commande hors délai enregistrée');
   document.getElementById('chdNavire').value = '';
@@ -1778,17 +1971,14 @@ async function sauvegarderRC() {
   const { error } = await db.from('evenements').insert({
     type:'rc', date, mois: getMoisFromDate(date),
     motif, js, regle: false,
+    user_id: currentUser?.id,
     marins_json: JSON.stringify(marinsSelected)
   });
 
   if (error) { toast('❌ Erreur : ' + error.message); return; }
 
-  // Alimenter Récup/CET si Antoine a choisi ce mode
-  const antoineSelRC = document.querySelector('#antoineVersementRC .radio-btn.selected');
-  const antoineValRC = antoineSelRC ? antoineSelRC.dataset.val : 'salaire';
-  if (antoineValRC === 'recup' || antoineValRC === 'cet') {
-    await ajouterMouvementJS(antoineValRC, parseFloat(getSelectedRadio('rcJsGroup')), `RC ${motif||''}`, 'rc', null, date);
-  }
+  // Alimenter JS pour tous les marins sélectionnés
+  await distribuerJS(marinsSelected, parseFloat(js), `RC ${motif||''}`, 'rc', date);
 
   toast('✅ Rappel congés enregistré');
   await loadRecap();
@@ -1844,6 +2034,7 @@ async function sauvegarderService() {
     type:'service', date: mois+'-01', mois,
     jours_cap_srv: joursCapSrv,
     montant: montantCap, regle: false,
+    user_id: currentUser?.id,
     marins_json: JSON.stringify(details)
   });
 
@@ -1880,6 +2071,7 @@ async function sauvegarderRemorque() {
     croche: r1 + r2,
     motif: `Activité ${moisActivite}`,
     montant, regle: false,
+    user_id: currentUser?.id,
     marins_json: JSON.stringify(details)
   });
 
@@ -1904,7 +2096,9 @@ async function loadStats() {
   const moisActuel   = `${anneeEnCours}-${moisEnCours}`;
 
   // Charger tous les evenements service + voyages
-  const { data: evts } = await db.from('evenements').select('*').in('type',['service']);
+  const { data: evts } = await db.from('evenements').select('*')
+    .in('type',['service'])
+    .eq('user_id', currentUser?.id);
   // Note: remorque chargé séparément ci-dessous
   const { data: voys } = await db.from('voyages').select('*');
   const { data: hist } = await db.from('config').select('*').like('key', 'hist_%');
@@ -1939,6 +2133,7 @@ async function loadStats() {
 
   // Croches depuis les primes remorque (pas service)
   const { data: remEvts } = await db.from('evenements').select('*').eq('type','remorque');
+  // Croches = commun à tous les capitaines (pas de filtre user_id)
   const remAll = remEvts || [];
   const remMoisEvts = remAll.filter(e => e.date && e.date.slice(0,7) === moisActuel);
   const remAnEvts   = remAll.filter(e => e.date && e.date.slice(0,4) === String(anneeEnCours));
@@ -2101,6 +2296,7 @@ async function loadTableJS(type) {
   const { data, error } = await db.from('compteurs_js')
     .select('*')
     .eq('type', type)
+    .eq('user_id', currentUser?.id)
     .order('date', {ascending:true})
     .order('created_at', {ascending:true});
 
@@ -2175,7 +2371,8 @@ async function ajouterLigneJS() {
   const source = typeOp === 'initial' ? 'initial' : typeOp === 'pose' ? 'pose' : 'ajout';
 
   const { error } = await db.from('compteurs_js').insert({
-    type, date, libelle, valeur: valeurSignee, source
+    type, date, libelle, valeur: valeurSignee, source,
+    user_id: currentUser?.id
   });
 
   if (error) { toast('❌ ' + error.message); return; }
@@ -2192,18 +2389,51 @@ async function supprimerLigneJS(id, type) {
   toast('🗑️ Supprimé');
 }
 
-async function ajouterMouvementJS(type, valeur, libelle, source, refId, date) {
+async function ajouterMouvementJS(type, valeur, libelle, source, refId, date, userId) {
   // Appelé automatiquement lors d'un enregistrement CHD/RC avec versement récup ou CET
   if (type !== 'recup' && type !== 'cet') return;
   await db.from('compteurs_js').insert({
     type, date: date || new Date().toISOString().slice(0,10),
     libelle, valeur, source,
-    ref_id: refId || null
+    ref_id: refId || null,
+    user_id: userId || currentUser?.id
   });
 }
 
 function goSection(id) {
   document.getElementById(id).scrollIntoView({behavior:'smooth'});
+}
+
+
+// ── Distribution JS inter-capitaines ──
+async function distribuerJS(marinsSelected, jsVal, libelle, source, date) {
+  // Charger les users (capitaines) depuis Supabase
+  const { data: users } = await db.from('users').select('*');
+  if (!users) return;
+
+  // Pour chaque marin dans marinsSelected, si c'est un capitaine (user existant)
+  // on ajoute le JS dans son compte avec le bon mode de versement
+  for (const m of marinsSelected) {
+    if (m._antoine) {
+      // C'est moi — utiliser mon versement choisi
+      const versement = m.versement || 'salaire';
+      if (versement === 'recup' || versement === 'cet') {
+        await ajouterMouvementJS(versement, jsVal, libelle, source, null, date, currentUser.id);
+      }
+      continue;
+    }
+    // Chercher si ce marin est un capitaine (user dans la table users)
+    const user = users.find(u =>
+      u.nom?.toUpperCase() === m.nom?.toUpperCase() &&
+      u.prenom?.toLowerCase() === m.prenom?.toLowerCase()
+    );
+    if (user) {
+      const versement = m.versement || 'salaire';
+      if (versement === 'recup' || versement === 'cet') {
+        await ajouterMouvementJS(versement, jsVal, libelle, source, null, date, user.id);
+      }
+    }
+  }
 }
 
 // ── VOYAGE ──
@@ -2226,7 +2456,9 @@ function renderEquipageCDI() {
     const defaultPoste = m.poste || 'Matelot';
     const postes = ['Capitaine','Chef mécanicien','Second Capitaine','Matelot'];
     const presences = ['Voyage','Absent','CSS']; // CSS = Congés Sans Solde = 0 part
-    const isAntoine = (m.nom === 'JOSSE' && m.prenom === 'Antoine');
+    const isAntoine = currentUser &&
+      m.nom?.toUpperCase() === currentUser.nom?.toUpperCase() &&
+      m.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase();
 
     const row = document.createElement('div');
     row.className = 'cdi-row';
@@ -2296,7 +2528,9 @@ function calculerVoyage(save=true) {
     if (!m) return;
     const presence = row.querySelector('.cdi-presence').value;
     const poste    = row.querySelector('.cdi-poste').value;
-    const isAntoine = (m.nom === 'JOSSE' && m.prenom === 'Antoine');
+    const isAntoine = currentUser &&
+      m.nom?.toUpperCase() === currentUser.nom?.toUpperCase() &&
+      m.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase();
 
     let parts = 0;
     if (presence === 'Voyage') parts = PARTS_POSTE[poste] || 4;
@@ -2304,7 +2538,7 @@ function calculerVoyage(save=true) {
     else parts = 0; // CSS
 
     totalParts += parts;
-    if (isAntoine) antoineParts = parts;
+    if (isAntoine) antoineParts = parts; // sera recalculé via meCDI
     equip.push({ nom: m.nom, prenom: m.prenom, poste, presence, parts, cdi: true });
   });
 
@@ -2369,7 +2603,8 @@ async function sauvegarderVoyage() {
     resultat: voyageCalcData.resultat,
     part_antoine: voyageCalcData.partAntoine,
     equipage_json: JSON.stringify(voyageCalcData.equip),
-    regle: false
+    regle: false,
+    user_id: currentUser?.id
   });
 
   if (error) { toast('❌ ' + error.message); return; }
@@ -2394,9 +2629,13 @@ async function loadVoyages() {
       const moitie = parseFloat(v.resultat || 0) / 2;
       valeurPart = totalParts > 0 ? moitie / totalParts : 0;
 
-      // Trouver Antoine
-      const antoine = equip.find(e => e.nom === 'JOSSE' || (e.prenom === 'Antoine' && e.cdi));
-      antoineParts = antoine ? (antoine.parts || 0) : 0;
+      // Trouver le capitaine connecté
+      const meInEquip = equip.find(e =>
+        e.cdi && currentUser &&
+        (e.nom?.toUpperCase() === currentUser.nom?.toUpperCase() ||
+         (e.nom === 'JOSSE' && currentUser.nom === 'JOSSE'))
+      );
+      antoineParts = meInEquip ? (meInEquip.parts || 0) : 0;
 
       // Lignes équipage : initiales + parts + montant
       lignesEquip = equip
@@ -2474,7 +2713,10 @@ async function loadRecap() {
   const moisNom = currentMoisDate.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
   document.getElementById('monthLabel').textContent = moisNom.toUpperCase();
 
-  const { data } = await db.from('evenements').select('*').eq('mois', mois).order('date');
+  const { data } = await db.from('evenements').select('*')
+    .eq('mois', mois)
+    .eq('user_id', currentUser?.id)
+    .order('date');
   if (!data) return;
 
   let jsSalaire = 0, jsRecup = 0, jsCet = 0;
