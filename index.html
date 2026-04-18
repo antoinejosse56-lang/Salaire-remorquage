@@ -593,18 +593,28 @@
   <div id="formRC" class="card" style="display:none;">
     <div class="card-title">🏖️ Rappel sur congés</div>
 
-    <label>Date du rappel</label>
-    <input type="date" id="rcDate">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div>
+        <label style="margin-top:0;">Date début</label>
+        <input type="date" id="rcDate" onchange="previewRC()">
+      </div>
+      <div>
+        <label style="margin-top:0;">Date fin <span style="color:var(--muted);font-size:10px;">(optionnel)</span></label>
+        <input type="date" id="rcDateFin" onchange="previewRC()">
+      </div>
+    </div>
+
+    <div id="rcJsPreview" style="display:none;margin-top:8px;padding:8px 12px;background:rgba(90,180,229,0.1);border-radius:8px;font-size:12px;font-family:'DM Mono',monospace;color:var(--foam);"></div>
 
     <label>Nom du navire (pour armement 3ème remorqueur)</label>
-    <input type="text" id="rcNavire" placeholder="ex: LADY DIVINA">
+    <input type="text" id="rcNavire" placeholder="ex: LADY DIVINA" oninput="genMailRC()">
 
-    <label>Motif du rappel (pour 1,5 JS)</label>
-    <input type="text" id="rcMotif" placeholder="ex: Urgence météo, renfort exceptionnel...">
+    <label>Motif du rappel</label>
+    <input type="text" id="rcMotif" placeholder="ex: Remplacement arrêt maladie" oninput="genMailRC()">
 
     <label>Compensation</label>
     <div class="radio-group" id="rcJsGroup">
-      <div class="radio-btn selected" data-val="1.5">1,5 JS</div>
+      <div class="radio-btn selected" data-val="1.5">1,5 JS / jour</div>
       <div class="radio-btn" data-val="3">3 JS (armement 3ème remorqueur)</div>
     </div>
 
@@ -1944,14 +1954,40 @@ Antoine`;
 }
 
 // ── Mail RC ──
+function getJoursBetween(dateDebStr, dateFinStr) {
+  // Retourne un tableau de dates entre début et fin inclus
+  const jours = [];
+  const deb = new Date(dateDebStr + 'T12:00:00');
+  const fin = dateFinStr ? new Date(dateFinStr + 'T12:00:00') : deb;
+  for (let d = new Date(deb); d <= fin; d.setDate(d.getDate() + 1)) {
+    jours.push(new Date(d));
+  }
+  return jours;
+}
+
+function previewRC() {
+  const dateDeb = document.getElementById('rcDate').value;
+  const dateFin = document.getElementById('rcDateFin').value;
+  const el = document.getElementById('rcJsPreview');
+  if (!dateDeb) { el.style.display = 'none'; return; }
+  const jours = getJoursBetween(dateDeb, dateFin);
+  const totalJS = jours.length * 1.5;
+  const dateFinLabel = dateFin && dateFin !== dateDeb
+    ? ` → ${new Date(dateFin+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'long'})}`
+    : '';
+  el.style.display = 'block';
+  el.textContent = `${jours.length} jour(s)${dateFinLabel} × 1,5 JS = ${totalJS.toFixed(1)} JS total`;
+  genMailRC();
+}
+
 function genMailRC() {
-  const date = document.getElementById('rcDate').value;
+  const dateDeb = document.getElementById('rcDate').value;
+  const dateFin = document.getElementById('rcDateFin').value;
   const motif = document.getElementById('rcMotif').value || '[motif]';
   const navireRC = document.getElementById('rcNavire')?.value || '';
   const js = getSelectedRadio('rcJsGroup');
 
-  const dateObj = date ? new Date(date+'T12:00:00') : new Date();
-  const dateLabel = dateObj.toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+  if (!dateDeb) return;
 
   const marinsSelected = [...document.querySelectorAll('#rcMarins .marin-chip.selected')];
   const labelVersement = v => v === 'recup' ? 'compte récup' : v === 'cet' ? 'CET' : 'salaire';
@@ -1960,30 +1996,43 @@ function genMailRC() {
     return `${c.dataset.prenom} ${c.dataset.nom} sur ${labelVersement(versement)}`;
   }).join('\n');
 
+  const monNomRC = currentUser ? `${currentUser.prenom} ${currentUser.nom}` : 'Antoine JOSSE';
+
   let mail;
   if (js === '3') {
-    // Message 3ème remorqueur
+    const dateObj = new Date(dateDeb+'T12:00:00');
+    const dateLabel = dateObj.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
     mail = `Bonjour Guylaine,
 
 Suite à l'armement du 3ème remorqueur pour le mouvement du ${navireRC || '[nom du navire]'} le ${dateLabel}, merci de bien vouloir verser 3 JS à :
 
-${antoineVersementCHD()}
+${antoineVersementRC()}
 ${lignesMarins || '[Sélectionner les marins ci-dessus]'}
 
 Merci et bonne journée
-Antoine`;
+${monNomRC}`;
   } else {
-    // Message rappel congés standard 1.5 JS
+    // Multi-jours : une ligne par jour
+    const jours = getJoursBetween(dateDeb, dateFin);
+    const lignesJours = jours.map(d => {
+      const label = d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+      return `Rappel sur congés le ${label} — ${motif} : 1,5 JS`;
+    }).join('\n');
+
+    const totalJS = (jours.length * 1.5).toFixed(1);
+
     mail = `Bonjour Guylaine,
 
-Suite rappel sur congés le ${dateLabel} — ${motif}.
+${lignesJours}
 
-Merci de verser 1,5 JS à :
-${antoineVersementCHD()}
+Total : ${totalJS} JS
+
+Merci de verser à :
+${antoineVersementRC()}
 ${lignesMarins || '[Sélectionner les marins ci-dessus]'}
 
 Merci et bonne journée
-Antoine`;
+${monNomRC}`;
   }
 
   document.getElementById('mailTextRC').textContent = mail;
@@ -2041,12 +2090,13 @@ async function sauvegarderCHD() {
 }
 
 async function sauvegarderRC() {
-  const date = document.getElementById('rcDate').value;
+  const dateDeb = document.getElementById('rcDate').value;
+  const dateFin = document.getElementById('rcDateFin').value;
   const motif = document.getElementById('rcMotif').value;
-  const js = parseFloat(getSelectedRadio('rcJsGroup'));
+  const jsParJour = 1.5;
   const antoineVersementValRC = document.querySelector('#antoineVersementRC .radio-btn.selected')?.dataset.val || 'salaire';
   const marinsSelected = [
-    { _antoine: true, nom: 'JOSSE', prenom: 'Antoine', versement: antoineVersementValRC },
+    { _antoine: true, nom: currentUser?.nom || 'JOSSE', prenom: currentUser?.prenom || 'Antoine', versement: antoineVersementValRC },
     ...[...document.querySelectorAll('#rcMarins .marin-chip.selected')].map(c => ({
       nom: c.dataset.nom,
       prenom: c.dataset.prenom,
@@ -2054,21 +2104,45 @@ async function sauvegarderRC() {
     }))
   ];
 
-  if (!date) { toast('⚠️ Complète la date'); return; }
+  if (!dateDeb) { toast('⚠️ Complète la date de début'); return; }
 
-  const { error } = await db.from('evenements').insert({
-    type:'rc', date, mois: getMoisFromDate(date),
-    motif, js, regle: false,
-    user_id: currentUser?.id,
-    marins_json: JSON.stringify(marinsSelected)
-  });
+  const jours = getJoursBetween(dateDeb, dateFin);
+  const jsType = getSelectedRadio('rcJsGroup');
 
-  if (error) { toast('❌ Erreur : ' + error.message); return; }
+  // Pour 3ème remorqueur : une seule ligne avec 3 JS
+  if (jsType === '3') {
+    const { error } = await db.from('evenements').insert({
+      type:'rc', date: dateDeb, mois: getMoisFromDate(dateDeb),
+      motif, js: 3, regle: false,
+      user_id: currentUser?.id,
+      marins_json: JSON.stringify(marinsSelected)
+    });
+    if (error) { toast('❌ Erreur : ' + error.message); return; }
+    await distribuerJS(marinsSelected, 3, `RC 3ème tug ${motif||''}`, 'rc', dateDeb);
+    toast('✅ Rappel congés enregistré (3 JS)');
+  } else {
+    // Multi-jours : une ligne par jour × 1,5 JS
+    let hasError = false;
+    for (const jour of jours) {
+      const dateStr = jour.toISOString().slice(0,10);
+      const { error } = await db.from('evenements').insert({
+        type:'rc', date: dateStr, mois: getMoisFromDate(dateStr),
+        motif, js: jsParJour, regle: false,
+        user_id: currentUser?.id,
+        marins_json: JSON.stringify(marinsSelected)
+      });
+      if (error) { hasError = true; break; }
+      await distribuerJS(marinsSelected, jsParJour, `RC ${motif||''} ${dateStr}`, 'rc', dateStr);
+    }
+    if (hasError) { toast("❌ Erreur lors de l'enregistrement"); return; }
+    toast(`✅ ${jours.length} jour(s) enregistré(s) — ${(jours.length * 1.5).toFixed(1)} JS total`);
+  }
 
-  // Alimenter JS pour tous les marins sélectionnés
-  await distribuerJS(marinsSelected, parseFloat(js), `RC ${motif||''}`, 'rc', date);
-
-  toast('✅ Rappel congés enregistré');
+  // Reset formulaire
+  document.getElementById('rcDate').value = '';
+  document.getElementById('rcDateFin').value = '';
+  document.getElementById('rcJsPreview').style.display = 'none';
+  document.getElementById('mailPreviewRC').style.display = 'none';
   await loadRecap();
   await loadCompteurs();
 }
@@ -3150,7 +3224,7 @@ function toast(msg) {
   const el = document.getElementById(id);
   if (el) el.addEventListener('change', genMailCHD);
 });
-['rcDate','rcMotif','rcNavire'].forEach(id => {
+['rcDate','rcDateFin','rcMotif','rcNavire'].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('change', genMailRC);
 });
