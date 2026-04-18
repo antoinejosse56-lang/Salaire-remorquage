@@ -2888,20 +2888,16 @@ async function loadRecap() {
   let totalVoyage = 0, totalRemorque = 0, totalService = 0;
 
   // Charger les voyages du mois (communs à tous)
-  const { data: voysMonth, error: voyErr } = await db.from('voyages')
+  // Calculer le dernier jour du mois correctement
+  const [moisY, moisM] = mois.split('-').map(Number);
+  const dernierJour = new Date(moisY, moisM, 0).getDate(); // 0 = dernier jour du mois précédent
+  const dateFin = mois + '-' + String(dernierJour).padStart(2,'0');
+
+  const { data: voysMonth } = await db.from('voyages')
     .select('*')
     .gte('date', mois + '-01')
-    .lte('date', mois + '-31')
+    .lte('date', dateFin)
     .order('date');
-
-  console.log('=== DEBUG VOYAGES RECAP ===');
-  console.log('Mois cherché:', mois);
-  console.log('currentUser.id:', currentUser?.id);
-  console.log('voyErr:', voyErr);
-  console.log('voysMonth count:', voysMonth?.length);
-  if (voysMonth) voysMonth.forEach(v => {
-    console.log('Voyage:', v.destination, '| date:', v.date, '| user_id:', v.user_id, '| part_antoine:', v.part_antoine, '| resultat:', v.resultat);
-  });
 
   if (voysMonth && voysMonth.length > 0) {
     voysMonth.forEach(v => {
