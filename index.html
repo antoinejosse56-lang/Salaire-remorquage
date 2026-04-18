@@ -1496,7 +1496,11 @@ function renderMarinsConfig() {
 let cddRecurrents = [];
 
 async function loadCddRecurrents() {
-  const { data } = await db.from('config').select('value').eq('key','cdd_recurrents').single().catch(()=>({data:null}));
+  let data = null;
+  try {
+    const res = await db.from('config').select('value').eq('key','cdd_recurrents').maybeSingle();
+    data = res.data;
+  } catch(e) {}
   if (data?.value) {
     try { cddRecurrents = JSON.parse(data.value); } catch(e) { cddRecurrents = []; }
   }
@@ -2887,10 +2891,9 @@ async function loadRecap() {
   let jsSalaire = 0, jsRecup = 0, jsCet = 0;
   let totalVoyage = 0, totalRemorque = 0, totalService = 0;
 
-  // Charger les voyages du mois (communs à tous)
   // Calculer le dernier jour du mois correctement
   const [moisY, moisM] = mois.split('-').map(Number);
-  const dernierJour = new Date(moisY, moisM, 0).getDate(); // 0 = dernier jour du mois précédent
+  const dernierJour = new Date(moisY, moisM, 0).getDate();
   const dateFin = mois + '-' + String(dernierJour).padStart(2,'0');
 
   const { data: voysMonth } = await db.from('voyages')
@@ -2899,52 +2902,6 @@ async function loadRecap() {
     .lte('date', dateFin)
     .order('date');
 
-  if (voysMonth && voysMonth.length > 0) {
-    voysMonth.forEach(v => {
-      // Calculer la part du capitaine connecté
-      let maPart = 0;
-
-      // 1. Si c'est mon voyage (ou avant multi-user) → utiliser part_antoine stocké directement
-      if (v.user_id === currentUser?.id || v.user_id === null || v.user_id === undefined) {
-        maPart = parseFloat(v.part_antoine || 0);
-        console.log('Mon voyage, maPart =', maPart);
-      } else {
-        // 2. Voyage d'un collègue → recalculer ma part depuis l'équipage
-        try {
-          const equip = JSON.parse(v.equipage_json || '[]');
-          let totalP = 0;
-          equip.forEach(e => totalP += (e.parts || 0));
-          const moitie = parseFloat(v.resultat || 0) / 2;
-          const valPart = totalP > 0 ? moitie / totalP : 0;
-          const me = equip.find(e =>
-            currentUser && (
-              e.nom?.toUpperCase() === currentUser.nom?.toUpperCase() ||
-              e.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase()
-            )
-          );
-          if (me && me.parts > 0) maPart = valPart * me.parts;
-        } catch(x) {}
-      }
-      totalVoyage += maPart;
-
-      const creePar = v.user_id !== currentUser?.id ? ' · autre cap.' : '';
-      html += `
-        <div class="recap-item">
-          <div class="recap-item-left">
-            <div class="recap-item-title">
-              <span class="tag-type tag-voyage">VOYAGE</span>
-              &nbsp;${v.destination || 'Voyage'}${creePar}
-            </div>
-            <div class="recap-item-sub">${v.date}</div>
-          </div>
-          <div class="recap-item-right">
-            <span class="badge badge-js">${maPart.toFixed(2)} €</span>
-            <span class="badge ${v.regle ? 'badge-paid' : 'badge-unpaid'}">${v.regle ? '✓ Réglé' : '⏳ En attente'}</span>
-          </div>
-        </div>
-      `;
-    });
-  }
   let html = '';
 
   // Helper : lire le versement Antoine depuis marins_json
@@ -3068,6 +3025,49 @@ async function loadRecap() {
   });
 
   const totalJS = jsSalaire + jsRecup + jsCet;
+
+  // Ajouter les voyages du mois dans le récap
+  if (voysMonth && voysMonth.length > 0) {
+    voysMonth.forEach(v => {
+      let maPart = 0;
+      if (v.user_id === currentUser?.id || v.user_id === null || v.user_id === undefined) {
+        maPart = parseFloat(v.part_antoine || 0);
+      } else {
+        try {
+          const equip = JSON.parse(v.equipage_json || '[]');
+          let totalP = 0;
+          equip.forEach(e => totalP += (e.parts || 0));
+          const moitie = parseFloat(v.resultat || 0) / 2;
+          const valPart = totalP > 0 ? moitie / totalP : 0;
+          const me = equip.find(e =>
+            currentUser && (
+              e.nom?.toUpperCase() === currentUser.nom?.toUpperCase() ||
+              e.prenom?.toLowerCase() === currentUser.prenom?.toLowerCase()
+            )
+          );
+          if (me && me.parts > 0) maPart = valPart * me.parts;
+        } catch(x) {}
+      }
+      totalVoyage += maPart;
+      const creePar = v.user_id !== currentUser?.id ? ' · autre cap.' : '';
+      html += `
+        <div class="recap-item">
+          <div class="recap-item-left">
+            <div class="recap-item-title">
+              <span class="tag-type tag-voyage">VOYAGE</span>
+              &nbsp;${v.destination || 'Voyage'}${creePar}
+            </div>
+            <div class="recap-item-sub">${v.date}</div>
+          </div>
+          <div class="recap-item-right">
+            <span class="badge badge-js">${maPart.toFixed(2)} €</span>
+            <span class="badge ${v.regle ? 'badge-paid' : 'badge-unpaid'}">${v.regle ? '✓ Réglé' : '⏳ En attente'}</span>
+          </div>
+        </div>
+      `;
+    });
+  }
+
   document.getElementById('totalJSSalaire').textContent = jsSalaire.toFixed(1) + ' JS';
   document.getElementById('totalJSRecup').textContent = jsRecup.toFixed(1) + ' JS';
   document.getElementById('totalJSCet').textContent = jsCet.toFixed(1) + ' JS';
