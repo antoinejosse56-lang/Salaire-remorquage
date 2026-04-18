@@ -2675,21 +2675,27 @@ async function loadVoyages() {
         }).join('');
     } catch(e) {}
 
+    // Montant recalculé pour le capitaine connecté (pas le montant stocké)
+    const maPartMontant = (valeurPart * antoineParts).toFixed(2);
+    const creePar = v.user_id === currentUser?.id ? '' : '<span style="font-size:10px;color:var(--muted);"> · créé par autre</span>';
+    // Bouton supprimer seulement pour le créateur ou l'admin
+    const peutSupprimer = v.user_id === currentUser?.id || currentUser?.is_admin;
+
     return `
     <div class="recap-item" style="flex-direction:column;align-items:stretch;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div class="recap-item-left">
-          <div class="recap-item-title">${v.destination || 'Voyage'}</div>
+          <div class="recap-item-title">${v.destination || 'Voyage'}${creePar}</div>
           <div class="recap-item-sub">${v.date}${v.date_paiement ? ' · Payé le '+v.date_paiement : ''}</div>
         </div>
         <div class="recap-item-right" style="align-items:flex-end;">
-          <span style="font-family:'Bebas Neue';font-size:20px;color:var(--gold2);">${parseFloat(v.part_antoine||0).toFixed(2)} €</span>
+          <span style="font-family:'Bebas Neue';font-size:20px;color:var(--gold2);">${maPartMontant} €</span>
           <span style="font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;">${antoineParts}pt · ${valeurPart.toFixed(2)}€/pt · ${totalParts}pt total</span>
           ${v.regle
             ? `<button class="btn-sm danger" onclick="toggleVoyageRegle('${v.id}',false)">Annuler ✓</button>`
             : `<button class="btn-sm success" onclick="marquerVoyageRegle('${v.id}')">✓ Payé</button>`
           }
-          <button class="btn-sm danger" onclick="supprimerVoyage('${v.id}')" style="margin-top:4px;">🗑️ Supprimer</button>
+          ${peutSupprimer ? `<button class="btn-sm danger" onclick="supprimerVoyage('${v.id}')" style="margin-top:4px;">🗑️ Supprimer</button>` : ''}
         </div>
       </div>
       ${lignesEquip ? `<div style="margin-top:8px;line-height:1.8;">${lignesEquip}</div>` : ''}
@@ -2749,6 +2755,54 @@ async function loadRecap() {
 
   let jsSalaire = 0, jsRecup = 0, jsCet = 0;
   let totalVoyage = 0, totalRemorque = 0, totalService = 0;
+
+  // Charger les voyages du mois (communs à tous)
+  const { data: voysMonth } = await db.from('voyages')
+    .select('*')
+    .gte('date', mois + '-01')
+    .lte('date', mois + '-31')
+    .order('date');
+
+  if (voysMonth && voysMonth.length > 0) {
+    voysMonth.forEach(v => {
+      // Calculer la part du capitaine connecté
+      let maPart = 0;
+      try {
+        const equip = JSON.parse(v.equipage_json || '[]');
+        let totalP = 0;
+        equip.forEach(e => totalP += (e.parts || 0));
+        const moitie = parseFloat(v.resultat || 0) / 2;
+        const valPart = totalP > 0 ? moitie / totalP : 0;
+        const meInEquip = equip.find(e =>
+          e.cdi && currentUser &&
+          e.nom?.toUpperCase() === currentUser.nom?.toUpperCase()
+        );
+        const mesParts = meInEquip ? (meInEquip.parts || 0) : 0;
+        maPart = valPart * mesParts;
+      } catch(x) {
+        // Fallback si erreur JSON
+        if (v.user_id === currentUser?.id) maPart = parseFloat(v.part_antoine || 0);
+      }
+      totalVoyage += maPart;
+
+      const creePar = v.user_id !== currentUser?.id ? ' · autre cap.' : '';
+      html += `
+        <div class="recap-item">
+          <div class="recap-item-left">
+            <div class="recap-item-title">
+              <span class="tag-type tag-voyage">VOYAGE</span>
+              &nbsp;${v.destination || 'Voyage'}${creePar}
+            </div>
+            <div class="recap-item-sub">${v.date}</div>
+          </div>
+          <div class="recap-item-right">
+            <span class="badge badge-js">${maPart.toFixed(2)} €</span>
+            <span class="badge ${v.regle ? 'badge-paid' : 'badge-unpaid'}">${v.regle ? '✓ Réglé' : '⏳ En attente'}</span>
+          </div>
+        </div>
+      `;
+    });
+  }
   let html = '';
 
   // Helper : lire le versement Antoine depuis marins_json
